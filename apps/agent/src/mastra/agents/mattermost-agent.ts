@@ -17,6 +17,7 @@ import { webTools } from "../tools/web";
 import { webSearchConfigured } from "../web/exa";
 import { driveTools } from "../tools/drive";
 import { driveConfigured } from "../google/drive";
+import { githubExtraAvailable, githubExtraTools } from "../tools/github-extra";
 import { getModel } from "../settings/store";
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
@@ -30,6 +31,9 @@ const uuaisTools = uuaisMcp
         return {};
       })
   : {};
+
+// Compact issue/PR tools replacing the MCP server's verbose equivalents.
+const githubIssueTools = githubExtraAvailable() ? githubExtraTools : {};
 
 // UUAIS shared drive, read-only (scope drive.readonly).
 const sharedDriveTools = driveConfigured() ? driveTools : {};
@@ -180,6 +184,7 @@ export const mattermostAgent = new Agent({
   // create_custom_tool is callable on its very next turn without a restart.
   tools: async () => ({
     ...githubTools,
+    ...githubIssueTools,
     ...uuaisTools,
     ...crmTools,
     ...reminderTools,

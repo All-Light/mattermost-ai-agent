@@ -21,8 +21,10 @@ export const githubMcp = token
             headers: {
               Authorization: `Bearer ${token}`,
               "X-MCP-Readonly": "true",
-              "X-MCP-Toolsets":
-                "repos,issues,pull_requests,search,users,context",
+              // issues and pull_requests are omitted: their 8 tools cost about
+              // 8,100 tokens of schema, and tools/github-extra.ts covers the
+              // same ground in a fraction of that.
+              "X-MCP-Toolsets": "repos,search,users,context",
             },
           },
         },
