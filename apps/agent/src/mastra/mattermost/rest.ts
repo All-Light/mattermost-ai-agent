@@ -100,6 +100,26 @@ export async function resolveUser(ref: string): Promise<MattermostUser> {
   return user;
 }
 
+/**
+ * Look up a member by their Mattermost user id.
+ *
+ * The adapter falls back to the raw user id when its own user fetch fails
+ * (`userName: user?.username ?? fallbackUserId`), so anything doing an identity
+ * check has to be able to recover the real username rather than trusting the
+ * value it was handed.
+ */
+export async function getUserById(userId: string): Promise<MattermostUser | null> {
+  const cached = userCache.get(`id:${userId}`);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.user;
+  try {
+    const user = await mmFetch<MattermostUser>(`/users/${encodeURIComponent(userId)}`);
+    userCache.set(`id:${userId}`, { user, at: Date.now() });
+    return user;
+  } catch {
+    return null;
+  }
+}
+
 export async function openDirectChannel(userId: string): Promise<string> {
   const bot = await getBotUserId();
   const channel = await mmFetch<{ id: string }>("/channels/direct", {

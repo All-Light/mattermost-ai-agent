@@ -6,7 +6,7 @@
 import { createClient, type Client } from "@libsql/client";
 
 /** Used until someone overrides it in chat. */
-export const DEFAULT_MODEL = process.env.AGENT_MODEL ?? "openrouter/deepseek/deepseek-v4-flash-0731";
+export const DEFAULT_MODEL = process.env.AGENT_MODEL ?? "openrouter/z-ai/glm-5.3-flash";
 
 type Settings = { model: string };
 

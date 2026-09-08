@@ -5,6 +5,7 @@
 // command is recognised as an ordinary message prefix instead.
 import type { Message, Thread } from "chat";
 import { DEFAULT_MODEL, getModel, resetModel, setModel } from "../settings/store";
+import { getUserById } from "../mattermost/rest";
 
 // Mattermost's webapp swallows anything starting with "/" as a slash command,
 // so an unregistered "/model" never reaches the bot at all. "/model" is still
@@ -13,12 +14,44 @@ import { DEFAULT_MODEL, getModel, resetModel, setModel } from "../settings/store
 const COMMANDS = ["!model", "/model", "./model", ".model"] as const;
 const PRIMARY_COMMAND = "!model";
 
-/** Usernames allowed to change the model. Comma-separated, without the @. */
+/** Usernames (or user ids) allowed to change the model. Comma-separated. */
 function admins(): string[] {
   return (process.env.MODEL_ADMINS ?? "alexander.andersson")
     .split(",")
     .map((name) => name.trim().replace(/^@/, "").toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * Decide whether the sender may change the model.
+ *
+ * The adapter sets `author.userName` to the raw user id when its own user
+ * lookup fails (`userName: user?.username ?? fallbackUserId`), which silently
+ * turns a legitimate maintainer into a stranger. So: try the supplied name,
+ * then the user id, then re-resolve the canonical username from Mattermost
+ * before refusing.
+ */
+async function isAdmin(message: Message): Promise<{ allowed: boolean; identity: string }> {
+  const allowlist = admins();
+  const supplied = (message.author?.userName ?? "").toLowerCase();
+  const userId = message.author?.userId ?? "";
+
+  if (supplied && allowlist.includes(supplied)) return { allowed: true, identity: supplied };
+  if (userId && allowlist.includes(userId.toLowerCase())) return { allowed: true, identity: userId };
+
+  if (userId) {
+    const user = await getUserById(userId);
+    const canonical = user?.username?.toLowerCase();
+    if (canonical && allowlist.includes(canonical)) {
+      console.warn(
+        `[model] adapter reported userName="${supplied}" but Mattermost says "${canonical}" — allowing`,
+      );
+      return { allowed: true, identity: canonical };
+    }
+    if (canonical) return { allowed: false, identity: canonical };
+  }
+
+  return { allowed: false, identity: supplied || userId || "unknown" };
 }
 
 type ModelList = { ids: Set<string>; at: number };
@@ -69,12 +102,11 @@ export async function handleModelCommand(thread: Thread, message: Message): Prom
   if (!matched) return false;
 
   const argument = stripped.slice(matched.length).trim();
-  const userName = (message.author?.userName ?? "").toLowerCase();
+  const { allowed, identity: userName } = await isAdmin(message);
 
-  if (!admins().includes(userName)) {
-    await thread.post(
-      `Only ${admins().map((a) => `@${a}`).join(", ")} can change the model.`,
-    );
+  if (!allowed) {
+    console.warn(`[model] refused ${matched} from "${userName}" (allowlist: ${admins().join(", ")})`);
+    await thread.post("You're not on the model-admin list, so I can't change the model for you.");
     return true;
   }
 

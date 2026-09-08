@@ -312,6 +312,13 @@ gcloud iam service-accounts keys create ~/.config/uuais/uuais-bot-key.json --iam
 Then redeploy the agent with the new key. Put a reminder in the calendar — the
 bot can set one for itself once it is running.
 
+## Commands
+
+`!help` prints what the bot can do, built from the live configuration — an
+integration that is not switched on is listed as unavailable rather than
+advertised and then failing. `/help`, `.help` and `./help` are accepted too,
+with the same caveat about `/` as below.
+
 ## Changing the model from chat
 
 A maintainer can switch the OpenRouter model without a deploy:
@@ -331,8 +338,16 @@ does not dispatch slash commands anyway (see the feature matrix below). Use
 `!model`; `/model` stays wired up in case that changes.
 
 Who may do this is `MODEL_ADMINS` in `apps/agent/.env` (comma-separated
-Mattermost usernames, default `alexander.andersson`); anyone else gets a polite
-refusal. The id is checked against OpenRouter's live catalogue, so a typo is
+Mattermost usernames or user ids, default `alexander.andersson`); anyone else
+gets a polite refusal.
+
+The identity check does not trust `author.userName` alone. The adapter sets it
+to the raw user id whenever its own user lookup fails
+(`userName: user?.username ?? fallbackUserId`), which silently turns a
+maintainer into a stranger — the symptom is a refusal for someone who is on the
+list. The check therefore falls back to the user id and then re-resolves the
+canonical username from the Mattermost API before refusing, logging when it had
+to. The id is checked against OpenRouter's live catalogue, so a typo is
 rejected at the command rather than breaking every later message — if that
 lookup cannot be reached the id is accepted with a note.
 
