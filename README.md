@@ -457,6 +457,22 @@ This was chosen over Gmail API with domain-wide delegation deliberately: an app
 password reaches exactly one mailbox and cannot be pointed at another user,
 whereas delegation is a domain-wide trust that merely happens to be scoped.
 
+## Tool output in chat
+
+The channel is configured with `toolDisplay: "hidden"`. Mastra's default,
+`"cards"`, posts each tool's raw result into the conversation — which meant a
+`web_answer` call showed members the JSON envelope instead of an answer. With
+`hidden`, tools run silently and the typing indicator still reports
+`is calling <tool>…`.
+
+Approve/deny prompts are unaffected: Mastra renders those as their own card
+regardless of this setting, so the gates on `message_member` and
+`delete_calendar_event` still work.
+
+The prompt also tells the agent that tool output is raw material rather than a
+reply, since a model can paste JSON on its own without any help from the
+renderer.
+
 ## Rate limiting
 
 A per-user sliding-window limiter guards the bot against abuse (a script or runaway loop burning model credits). Limits are generous enough that a regular member never notices them:

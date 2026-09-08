@@ -260,6 +260,15 @@ export const mattermostAgent = new Agent({
     - Show the member what you ran when the result matters, so they can check
       your working rather than take it on faith.
 
+    Turning tool results into answers:
+    - Tool output is raw material, not a reply. Never paste a tool's JSON,
+      field names or envelope into the channel — write the answer in your own
+      words, in the member's language.
+    - Lead with the answer, then the supporting detail. Add the source link
+      when the claim came from the web, the drive or the CRM.
+    - If a tool failed, say what you could not do and why in one line. Do not
+      show the raw error unless someone is clearly debugging.
+
     How to behave in chat:
     - Keep replies concise and skimmable. Mattermost is a chat tool, not a
       document. Expand only when the user clearly wants depth.
@@ -303,7 +312,15 @@ export const mattermostAgent = new Agent({
   }),
   channels: {
     adapters: {
-      mattermost: createMattermostAdapter(),
+      mattermost: {
+        adapter: createMattermostAdapter(),
+        // Default is "cards", which posts each tool's raw result into the
+        // channel — members saw the JSON envelope from web_answer rather than
+        // an answer. Run tools silently instead; the typing indicator still
+        // shows "is calling <tool>…", and approve/deny prompts still render as
+        // their own card regardless of this setting.
+        toolDisplay: "hidden",
+      },
     },
     handlers: {
       onDirectMessage: withMattermostAttachmentAuth,
