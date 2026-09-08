@@ -372,6 +372,27 @@ until the morning rather than starting the bot at 03:00.
 Adjust with `UUAIS_QUIET_START` / `UUAIS_QUIET_END` (hours, 24h clock) in the
 schedule unit.
 
+## Web search (Exa)
+
+Four tools over [Exa](https://exa.ai): `web_search` (with domain filters and a
+published-after cutoff), `web_answer` (one sourced answer with citations),
+`web_read` (readable text of up to five URLs), and `web_find_similar`.
+
+```bash
+EXA_API_KEY=...
+```
+
+Results are trimmed before they reach the model — highlights by default, full
+text only on request, capped at 4000 characters per page and 10 results — since
+a search that fills the context window is worse than no search. Neural searches
+are billed per call (about $0.007 each at the time of writing), so the agent is
+instructed not to fire several near-identical queries.
+
+These read the open web. For anything about UUAIS itself the `uuais_*` tools
+come first: they read our own data and are authoritative, whereas the open web
+is frequently out of date about us. Note that `web_read` returns very little for
+`uuais.com` because the site is client-rendered.
+
 ## Tools the agent writes for itself
 
 `create_custom_tool` saves a script under a name and description; it appears in

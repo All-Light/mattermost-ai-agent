@@ -13,6 +13,8 @@ import { sandboxAvailable, sandboxTools } from "../tools/sandbox";
 import { buildCustomTools, customToolManagement } from "../tools/custom-tools";
 import { inboxTools } from "../tools/inbox";
 import { inboxConfigured } from "../google/inbox";
+import { webTools } from "../tools/web";
+import { webSearchConfigured } from "../web/exa";
 import { getModel } from "../settings/store";
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
@@ -26,6 +28,12 @@ const uuaisTools = uuaisMcp
         return {};
       })
   : {};
+
+// Open-web search (Exa).
+const searchTools = webSearchConfigured() ? webTools : {};
+if (!webSearchConfigured()) {
+  console.warn("[web] EXA_API_KEY is not set — web search tools will be disabled.");
+}
 
 // The bot's own mailbox, read-only over IMAP.
 const mailboxTools = inboxConfigured() ? inboxTools : {};
@@ -184,6 +192,20 @@ export const mattermostAgent = new Agent({
       person requesting is clearly acting for the team (e.g. a board member
       chasing a deadline), and say who set it in the reminder text.
 
+    Web search (web_search, web_answer, web_read, web_find_similar):
+    - Use these for the open web: papers, tooling, external events, background
+      on a company before an outreach meeting, checking a claim.
+    - For anything about UUAIS itself — our events, members, courses, jobs —
+      use the uuais_* tools first. They read our own data and are
+      authoritative; the open web is not, and often out of date about us.
+    - Prefer web_answer for one specific fact, web_search when you want to read
+      around a topic, web_read when a member pastes a link or an excerpt is
+      not enough.
+    - Always link the sources you used so members can check you. Say when
+      something is a single unconfirmed source rather than stating it flatly.
+    - Searches cost money per call. Don't fire several near-identical queries;
+      refine one, and don't search for things you already know.
+
     Writing your own tools:
     - When you find yourself doing the same computation more than once, save
       it: create_custom_tool stores a script under a name and description, and
@@ -257,6 +279,7 @@ export const mattermostAgent = new Agent({
     ...googleCalendarTools,
     ...shellTools,
     ...mailboxTools,
+    ...searchTools,
     ...(await buildCustomTools()),
   }),
   channels: {

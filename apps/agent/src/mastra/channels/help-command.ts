@@ -11,6 +11,7 @@ import { calendarConfigured } from "../google/calendar";
 import { sandboxAvailable } from "../tools/sandbox";
 import { mattermostConfigured } from "../mattermost/rest";
 import { inboxConfigured, inboxAddress } from "../google/inbox";
+import { webSearchConfigured } from "../web/exa";
 import { getModel } from "../settings/store";
 
 const COMMANDS = ["!help", "/help", ".help", "./help"] as const;
@@ -70,6 +71,16 @@ function sections(): Section[] {
         '"What does the README of the website repo say about deployment?"',
       ],
       disabledNote: "needs `GITHUB_TOKEN`",
+    },
+    {
+      title: "🔎 Web search",
+      enabled: webSearchConfigured(),
+      lines: [
+        '"Find recent papers on retrieval-augmented generation."',
+        '"What does this company do?" (paste a link)',
+        '"Which other Swedish universities have an AI society?"',
+      ],
+      disabledNote: "needs `EXA_API_KEY`",
     },
     {
       title: "📥 Bot mailbox",
