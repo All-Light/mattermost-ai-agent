@@ -317,10 +317,18 @@ bot can set one for itself once it is running.
 A maintainer can switch the OpenRouter model without a deploy:
 
 ```text
-./model                                  show the current model
-./model anthropic/claude-sonnet-5        switch (the openrouter/ prefix is optional)
-./model reset                            back to AGENT_MODEL
+!model                                  show the current model
+!model anthropic/claude-sonnet-5        switch (the openrouter/ prefix is optional)
+!model reset                            back to AGENT_MODEL
 ```
+
+`/model`, `.model` and `./model` are accepted too — but **`/model` will not
+reach the bot**. Mattermost's webapp treats any leading `/` as a slash command
+and refuses unregistered ones client-side, so the message is never posted. A
+real slash command would need a registered integration with a publicly
+reachable Request URL, which the Pi deliberately does not have, and the adapter
+does not dispatch slash commands anyway (see the feature matrix below). Use
+`!model`; `/model` stays wired up in case that changes.
 
 Who may do this is `MODEL_ADMINS` in `apps/agent/.env` (comma-separated
 Mattermost usernames, default `alexander.andersson`); anyone else gets a polite
@@ -331,10 +339,7 @@ lookup cannot be reached the id is accepted with a note.
 The choice is stored in `agent_settings` in the same LibSQL database as memory,
 so it survives restarts and redeploys, and the agent resolves `model` per
 request rather than at construction — the change applies to the next message.
-
-This is a message prefix rather than a real Mattermost slash command, because
-the adapter does not dispatch those yet (see the feature matrix below). A
-leading @mention is tolerated, so `@uuais-ai ./model ...` works in a channel.
+A leading @mention is tolerated, so `@uuais-ai !model ...` works in a channel.
 
 ## Quiet hours
 

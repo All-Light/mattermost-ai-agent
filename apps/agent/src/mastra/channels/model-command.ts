@@ -6,7 +6,12 @@
 import type { Message, Thread } from "chat";
 import { DEFAULT_MODEL, getModel, resetModel, setModel } from "../settings/store";
 
-const COMMAND = "./model";
+// Mattermost's webapp swallows anything starting with "/" as a slash command,
+// so an unregistered "/model" never reaches the bot at all. "/model" is still
+// accepted here in case a real slash command is registered later, but "!model"
+// is the one that actually arrives today.
+const COMMANDS = ["!model", "/model", "./model", ".model"] as const;
+const PRIMARY_COMMAND = "!model";
 
 /** Usernames allowed to change the model. Comma-separated, without the @. */
 function admins(): string[] {
@@ -56,9 +61,14 @@ export async function handleModelCommand(thread: Thread, message: Message): Prom
   const text = message.text?.trim() ?? "";
   // Tolerate a leading @mention, since that is how people talk to it in channels.
   const stripped = text.replace(/^@[\w.\-]+\s+/, "").trim();
-  if (!stripped.toLowerCase().startsWith(COMMAND)) return false;
+  const lower = stripped.toLowerCase();
+  // Longest first, so "./model" is not mistaken for ".model" with an argument.
+  const matched = [...COMMANDS]
+    .sort((a, b) => b.length - a.length)
+    .find((c) => lower === c || lower.startsWith(`${c} `));
+  if (!matched) return false;
 
-  const argument = stripped.slice(COMMAND.length).trim();
+  const argument = stripped.slice(matched.length).trim();
   const userName = (message.author?.userName ?? "").toLowerCase();
 
   if (!admins().includes(userName)) {
@@ -71,8 +81,8 @@ export async function handleModelCommand(thread: Thread, message: Message): Prom
   if (!argument) {
     await thread.post(
       `Current model: \`${await getModel()}\`\n` +
-        "Usage: `./model <openrouter-id>` — e.g. `./model anthropic/claude-sonnet-5`\n" +
-        "`./model reset` restores the default.",
+        `Usage: \`${PRIMARY_COMMAND} <openrouter-id>\` — e.g. \`${PRIMARY_COMMAND} anthropic/claude-sonnet-5\`\n` +
+        `\`${PRIMARY_COMMAND} reset\` restores the default.`,
     );
     return true;
   }
