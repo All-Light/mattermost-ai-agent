@@ -13,8 +13,11 @@ function requireInbox(): void {
 export const listInbox = createTool({
   id: "list_inbox",
   description:
-    "List recent messages in the bot's own mailbox (newest first) with sender, " +
-    "subject and date. Read-only — the bot cannot send, delete or mark mail.",
+    "List recent messages in the bot's own Gmail mailbox (newest first) with " +
+    "sender, subject and date. Connected over IMAP, which cannot send mail at " +
+    "all, and every mailbox is opened read-only — so nothing can be sent, " +
+    "replied to, deleted or even marked as read. Offer to draft a message for " +
+    "a member to send if asked to reply.",
   inputSchema: z.object({
     limit: z.number().int().min(1).max(50).optional().describe("Default 10"),
     unread_only: z.boolean().optional(),

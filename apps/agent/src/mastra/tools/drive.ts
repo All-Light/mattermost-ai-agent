@@ -29,9 +29,9 @@ function summarise(f: { id: string; name: string; mimeType: string; modifiedTime
 export const listDriveFiles = createTool({
   id: "list_drive_files",
   description:
-    "List files on the UUAIS shared drive, most recently modified first. " +
-    "Read-only. Use search_drive to find something by its contents rather than " +
-    "its name.",
+    "List files on the UUAIS shared Google Drive, most recently modified first. " +
+    "Read-only — the drive.readonly scope means Google refuses any edit. Use " +
+    "search_drive to find something by its contents rather than its name.",
   inputSchema: z.object({
     name_contains: z.string().optional().describe("Filter by filename"),
     folder_id: z.string().optional().describe("List inside one folder"),

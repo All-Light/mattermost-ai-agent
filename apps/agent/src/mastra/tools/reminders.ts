@@ -22,9 +22,13 @@ function requireMattermost(): void {
 export const remindMember = createTool({
   id: "remind_member",
   description:
-    "Schedule a reminder to be sent to a member as a Mattermost direct message at " +
-    `a future time. Times without a timezone are read as ${SOCIETY_TIMEZONE} ` +
-    "(Uppsala) local time. Use this for deadlines, task due dates and event prep.",
+    "Schedule a reminder to be sent to a member as a Mattermost direct message " +
+    `at a future time. Times without a timezone are read as ${SOCIETY_TIMEZONE} ` +
+    "(Uppsala) local. Use it for deadlines, task due dates and event prep — " +
+    "prefer it over messaging someone immediately. For a person who appears in " +
+    "the Business Hub, pass their email address: the CRM and Mattermost share " +
+    "the email but their usernames differ. Read the scheduled time back to the " +
+    "requester so a mistake is caught before it fires.",
   inputSchema: z.object({
     recipient,
     message: z.string().describe("What the reminder should say, in the member's own language."),

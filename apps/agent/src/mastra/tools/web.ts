@@ -11,10 +11,12 @@ function requireWeb(): void {
 export const webSearch = createTool({
   id: "web_search",
   description:
-    "Search the open web and get back titles, links and short excerpts. Use for " +
-    "anything outside UUAIS — papers, tooling, external events, company " +
-    "background before an outreach meeting. For facts about UUAIS itself, use " +
-    "the uuais_* tools instead: they read our own data and are authoritative.",
+    "Search the open web (via Exa) and get back titles, links and short " +
+    "excerpts. Use for anything outside UUAIS — papers, tooling, external " +
+    "events, company background before an outreach meeting. For facts about " +
+    "UUAIS itself use the uuais_* tools instead: they read our own data and " +
+    "are authoritative. Each search is billed, so refine one query rather than " +
+    "firing several near-identical ones, and don't search for what you know.",
   inputSchema: z.object({
     query: z.string().describe("A full-sentence query works better than keywords."),
     num_results: z.number().int().min(1).max(10).optional().describe("Default 5"),
@@ -42,9 +44,10 @@ export const webSearch = createTool({
 export const webAnswer = createTool({
   id: "web_answer",
   description:
-    "Ask a factual question and get a short sourced answer with citations. Good " +
-    "for a single specific fact; use web_search when you want to read around a " +
-    "topic or compare sources yourself.",
+    "Ask a factual question and get a short sourced answer with citations " +
+    "(via Exa). Good for a single specific fact; use web_search to read around " +
+    "a topic or compare sources yourself. Rewrite the answer in your own words " +
+    "rather than relaying it verbatim, and keep the source links.",
   inputSchema: z.object({ question: z.string() }),
   execute: async ({ question }) => {
     requireWeb();
