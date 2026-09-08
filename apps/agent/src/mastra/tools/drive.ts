@@ -83,16 +83,22 @@ export const listSharedDrives = createTool({
   inputSchema: z.object({}),
   execute: async () => {
     requireDrive();
-    const drives = await listDrives();
+    // A folder shared from someone's My Drive is not a "shared drive", so
+    // drives.list comes back empty even when files are perfectly readable.
+    // Report reachable files too, or this tool reports a problem that is not
+    // there and the agent tells a member access is missing when it is not.
+    const [drives, files] = await Promise.all([listDrives(), listFiles({ limit: 1 })]);
+    const reachable = drives.length > 0 || files.length > 0;
     return {
       bot_identity: serviceAccountEmail(),
-      count: drives.length,
-      drives,
-      ...(drives.length
+      shared_drives: drives,
+      has_readable_files: files.length > 0,
+      access: reachable ? "ok" : "none",
+      ...(reachable
         ? {}
         : {
             hint:
-              "No shared drives are visible. The drive must be shared with " +
+              "Nothing is visible. The drive or folder must be shared with " +
               `${serviceAccountEmail()}; sharing it with bot@uuais.com does not grant the agent access.`,
           }),
     };
