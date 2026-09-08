@@ -1,0 +1,13 @@
+# Oneshot updater — pulls origin/master, rebuilds, restarts the agent.
+# Runs as root because it restarts the service; all repo and build work is
+# dropped to the uuais-agent user inside the script.
+[Unit]
+Description=Update UUAIS Mattermost AI Agent from origin/master
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/uuais-agent-update
+# A build on a Pi is slow; do not let the timer kill it half-way.
+TimeoutStartSec=1800

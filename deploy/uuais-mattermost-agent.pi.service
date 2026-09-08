@@ -1,0 +1,54 @@
+# UUAIS Mattermost AI Agent — Raspberry Pi / home-network variant.
+#
+# Differs from uuais-mattermost-agent.service in three ways that matter on a Pi:
+#   - ProtectHome=true is dropped in favour of an explicit read-only path for
+#     the Google service-account key, which otherwise becomes invisible to the
+#     service when it lives under a home directory.
+#   - The unit waits for a synchronised clock: the Pi has no RTC, and Google
+#     rejects the service account's signed JWT if the clock is wrong at boot.
+#   - Restart=always with a longer backoff, because a home network drops out in
+#     ways a datacentre one does not.
+#
+# Install:
+#   sudo cp deploy/uuais-mattermost-agent.pi.service \
+#           /etc/systemd/system/uuais-mattermost-agent.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now uuais-mattermost-agent
+
+[Unit]
+Description=UUAIS Mattermost AI Agent (Mastra)
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=uuais-agent
+Group=uuais-agent
+WorkingDirectory=/opt/mattermost-ai-agent/apps/agent
+ExecStart=/usr/bin/node /opt/mattermost-ai-agent/apps/agent/.mastra/output/index.mjs
+
+# A home connection drops; always come back, but do not hot-loop on a bad build.
+Restart=always
+RestartSec=15
+
+# systemd's EnvironmentFile parser is not dotenv: it cannot handle multi-line or
+# quoted values. Keep GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY *out* of this file and
+# use GOOGLE_SERVICE_ACCOUNT_KEY_FILE instead.
+EnvironmentFile=/opt/mattermost-ai-agent/apps/agent/.env
+# These come AFTER the file on purpose: systemd applies assignments in order, so
+# an absolute DATABASE_URL here wins over a relative one left in .env.
+Environment=DATABASE_URL=file:/var/lib/uuais-agent/mastra.db
+Environment=NODE_ENV=production
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/uuais-agent
+# The service-account key lives outside any home directory so the sandbox can
+# see it. chown it to uuais-agent and chmod 600.
+ReadOnlyPaths=/etc/uuais
+
+[Install]
+WantedBy=multi-user.target

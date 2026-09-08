@@ -1,0 +1,40 @@
+# UUAIS Mattermost AI Agent — systemd unit (bare-metal VPS alternative to Docker)
+#
+# Install:
+#   1. Clone the repo to /opt/mattermost-ai-agent and run:
+#        bun install && cd apps/agent && bun run build
+#   2. Copy apps/agent/.env.example to apps/agent/.env and fill in secrets.
+#   3. Place this file at /etc/systemd/system/uuais-mattermost-agent.service
+#   4. systemctl daemon-reload && systemctl enable --now uuais-mattermost-agent
+#
+# Logs:  journalctl -u uuais-mattermost-agent -f
+
+[Unit]
+Description=UUAIS Mattermost AI Agent (Mastra)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uuais-agent
+Group=uuais-agent
+WorkingDirectory=/opt/mattermost-ai-agent/apps/agent
+# Mastra build output is self-contained under .mastra/output
+ExecStart=/usr/bin/node /opt/mattermost-ai-agent/apps/agent/.mastra/output/index.mjs
+Restart=on-failure
+RestartSec=5
+
+# Keep the LibSQL channel/memory DB alongside the app.
+Environment=DATABASE_URL=file:/opt/mattermost-ai-agent/apps/agent/.mastra/output/mastra.db
+# Secrets are read from the app .env by dotenv at startup.
+EnvironmentFile=/opt/mattermost-ai-agent/apps/agent/.env
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/mattermost-ai-agent/apps/agent/.mastra/output
+
+[Install]
+WantedBy=multi-user.target

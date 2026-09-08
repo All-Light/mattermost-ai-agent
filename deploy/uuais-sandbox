@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Runs one throwaway shell script for the agent, inside a locked-down container.
+#
+# Rootless Podman, executed as the agent's own user — there is no sudo grant and
+# no docker-group membership anywhere in this path, so the sandbox cannot become
+# a route to root on the Pi.
+#
+# The script is read from STDIN and never touches this host's shell, so there is
+# no argv or quoting path an injected string could escape through. The wrapper
+# accepts no arguments.
+#
+# What the sandbox deliberately does NOT have:
+#   - the network            (--network none)
+#   - a writable filesystem  (--read-only, plus a small noexec tmpfs on /tmp)
+#   - root                   (rootless userns; all capabilities dropped)
+#   - any host path          (no -v mounts at all)
+#   - any environment        (no -e; the agent's tokens are never passed in)
+#   - unbounded resources    (address space, pids and wall-clock all capped)
+#
+# Memory is bounded with ulimit rather than a cgroup because Raspberry Pi OS
+# ships `cgroup_disable=memory` on the kernel cmdline; re-enabling the memory
+# controller needs a boot-config change and a reboot. See raspberry-pi.md.
+set -uo pipefail
+
+IMAGE="${UUAIS_SANDBOX_IMAGE:-docker.io/library/python:3.12-alpine}"
+TIMEOUT_SECONDS=30
+# Backstop only. The real kill is podman's own --timeout below: killing the
+# podman *client* does not stop the container, so an outer `timeout` alone
+# leaves a runaway script burning a core forever.
+CLIENT_TIMEOUT_SECONDS=45
+MAX_OUTPUT_BYTES=100000
+ADDRESS_SPACE_KB=786432
+
+# Explicit storage paths so podman never depends on an interactive login session.
+export HOME=/var/lib/uuais-agent
+# Podman refuses to start if it cannot read the inherited working directory,
+# which happens whenever this is invoked from a directory the agent user cannot
+# enter. Anchor it somewhere the user always owns.
+cd "$HOME" || exit 1
+
+if [ "$#" -ne 0 ]; then
+  echo "uuais-sandbox takes no arguments; the script is read from stdin." >&2
+  exit 2
+fi
+
+script=$(cat)
+if [ -z "${script//[[:space:]]/}" ]; then
+  echo "Empty script." >&2
+  exit 2
+fi
+
+# `sh -s` reads the program from stdin, so the script stays data all the way down.
+printf '%s' "$script" | timeout --signal=KILL "$CLIENT_TIMEOUT_SECONDS" \
+  podman \
+    --root=/var/lib/uuais-agent/containers/storage \
+    --runroot=/var/lib/uuais-agent/containers/run \
+    run --rm -i \
+    --timeout "$TIMEOUT_SECONDS" \
+    --network none \
+    --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777 \
+    --workdir /tmp \
+    --pids-limit 128 \
+    --ulimit nofile=256:256 \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    "$IMAGE" sh -c "ulimit -v $ADDRESS_SPACE_KB 2>/dev/null; exec sh -s" \
+    2>&1 | head -c "$MAX_OUTPUT_BYTES"
+
+status=${PIPESTATUS[1]}
+if [ "$status" -eq 137 ] || [ "$status" -eq 124 ]; then
+  echo "" >&2
+  echo "[sandbox] killed after ${TIMEOUT_SECONDS}s." >&2
+  exit 124
+fi
+exit "$status"

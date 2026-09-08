@@ -1,0 +1,14 @@
+# Checks origin/master every 10 minutes. Polling rather than a webhook, because
+# the Pi sits behind NAT and nothing on the internet can reach it.
+[Unit]
+Description=Check for UUAIS agent updates every 10 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+# Spread the load so every Pi in the world does not fetch on the same second.
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

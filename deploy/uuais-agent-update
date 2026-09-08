@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Pull origin/master, rebuild, restart — and put everything back if the build
+# breaks, so a bad push degrades to "still running the old version" rather than
+# "the bot is down and nobody notices until Monday".
+set -euo pipefail
+
+REPO=/opt/mattermost-ai-agent
+BUN=/usr/local/bin/bun
+SVC=uuais-mattermost-agent
+RUN_AS=uuais-agent
+OUTPUT="$REPO/apps/agent/.mastra/output"
+BACKUP="/var/lib/uuais-agent/output-previous"
+
+log() { echo "[updater] $*"; }
+as_agent() { sudo -u "$RUN_AS" "$@"; }
+
+cd "$REPO"
+
+before=$(as_agent git rev-parse HEAD)
+as_agent git fetch --quiet origin master
+after=$(as_agent git rev-parse origin/master)
+
+if [ "$before" = "$after" ]; then
+  log "up to date at ${before:0:8}"
+  exit 0
+fi
+
+log "updating ${before:0:8} -> ${after:0:8}"
+
+# Refuse anything that is not a clean fast-forward: a force-push or a local edit
+# should stop the pipeline and be looked at by a human, not be merged blindly.
+if ! as_agent git merge-base --is-ancestor "$before" "$after"; then
+  log "ERROR: origin/master is not a fast-forward from HEAD - not updating."
+  exit 1
+fi
+
+# Keep the currently-working build so a failure is recoverable.
+rm -rf "$BACKUP"
+if [ -d "$OUTPUT" ]; then cp -a "$OUTPUT" "$BACKUP"; fi
+
+rollback() {
+  log "build failed - rolling back to ${before:0:8}"
+  as_agent git reset --hard --quiet "$before"
+  if [ -d "$BACKUP" ]; then
+    rm -rf "$OUTPUT"
+    cp -a "$BACKUP" "$OUTPUT"
+    chown -R "$RUN_AS:$RUN_AS" "$OUTPUT"
+  fi
+  log "rollback complete; service left running the previous build"
+  exit 1
+}
+
+as_agent git merge --ff-only --quiet origin/master || rollback
+as_agent "$BUN" install --frozen-lockfile || rollback
+( cd apps/agent && as_agent "$BUN" run build ) || rollback
+
+# Only touch the running service once a build has actually succeeded.
+systemctl restart "$SVC"
+sleep 8
+if ! systemctl is-active --quiet "$SVC"; then
+  log "service failed to come back after restart"
+  rollback
+fi
+
+log "updated to ${after:0:8} and restarted"
