@@ -1,6 +1,7 @@
 import type { ChannelHandler } from "@mastra/core/channels";
 import type { Message } from "chat";
 import { checkRateLimit, RATE_LIMIT_LIMITS } from "./rate-limit";
+import { handleModelCommand } from "./model-command";
 
 // Adapter only sets `url` on attachments (bot-token auth needed); attach fetchData so Mastra inlines the bytes.
 const enrichMattermostAttachments = (message: Message) => {
@@ -49,6 +50,10 @@ export const withMattermostAttachmentAuth: ChannelHandler = async (
       return;
     }
   }
+
+  // `./model` is answered here and never reaches the model, so a maintainer can
+  // switch models without spending a completion on it.
+  if (await handleModelCommand(thread, message)) return;
 
   await defaultHandler(thread, message);
 };

@@ -30,6 +30,9 @@ ExecStart=/usr/bin/node /opt/mattermost-ai-agent/apps/agent/.mastra/output/index
 # A home connection drops; always come back, but do not hot-loop on a bad build.
 Restart=always
 RestartSec=15
+# Node exits 143 (128+SIGTERM) on a clean `systemctl stop`. Without this the
+# unit is marked "failed" every night at the start of quiet hours.
+SuccessExitStatus=143
 
 # systemd's EnvironmentFile parser is not dotenv: it cannot handle multi-line or
 # quoted values. Keep GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY *out* of this file and

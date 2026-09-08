@@ -1,0 +1,13 @@
+# Fires exactly on the window edges, plus a quarter-hourly reconcile so a reboot
+# or a manual start inside the window corrects itself.
+[Unit]
+Description=UUAIS agent quiet-hours schedule
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+OnCalendar=*-*-* 06:00:00
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target

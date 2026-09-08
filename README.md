@@ -312,6 +312,46 @@ gcloud iam service-accounts keys create ~/.config/uuais/uuais-bot-key.json --iam
 Then redeploy the agent with the new key. Put a reminder in the calendar — the
 bot can set one for itself once it is running.
 
+## Changing the model from chat
+
+A maintainer can switch the OpenRouter model without a deploy:
+
+```text
+./model                                  show the current model
+./model anthropic/claude-sonnet-5        switch (the openrouter/ prefix is optional)
+./model reset                            back to AGENT_MODEL
+```
+
+Who may do this is `MODEL_ADMINS` in `apps/agent/.env` (comma-separated
+Mattermost usernames, default `alexander.andersson`); anyone else gets a polite
+refusal. The id is checked against OpenRouter's live catalogue, so a typo is
+rejected at the command rather than breaking every later message — if that
+lookup cannot be reached the id is accepted with a note.
+
+The choice is stored in `agent_settings` in the same LibSQL database as memory,
+so it survives restarts and redeploys, and the agent resolves `model` per
+request rather than at construction — the change applies to the next message.
+
+This is a message prefix rather than a real Mattermost slash command, because
+the adapter does not dispatch those yet (see the feature matrix below). A
+leading @mention is tolerated, so `@uuais-ai ./model ...` works in a channel.
+
+## Quiet hours
+
+The Pi deployment stops the agent between 00:00 and 06:00
+(`deploy/uuais-agent-schedule`, driven by a systemd timer). The script
+reconciles the service to whatever the clock says it should be, rather than
+relying on a stop-timer and a start-timer firing correctly, so a reboot or a
+manual start inside the window corrects itself within fifteen minutes.
+
+Reminders are not lost: the sweep selects everything with `due_at <= now`, so
+anything that came due overnight is delivered shortly after 06:00. The
+auto-updater also checks the window and leaves a freshly built version stopped
+until the morning rather than starting the bot at 03:00.
+
+Adjust with `UUAIS_QUIET_START` / `UUAIS_QUIET_END` (hours, 24h clock) in the
+schedule unit.
+
 ## Rate limiting
 
 A per-user sliding-window limiter guards the bot against abuse (a script or runaway loop burning model credits). Limits are generous enough that a regular member never notices them:

@@ -54,7 +54,14 @@ as_agent git merge --ff-only --quiet origin/master || rollback
 as_agent "$BUN" install --frozen-lockfile || rollback
 ( cd apps/agent && as_agent "$BUN" run build ) || rollback
 
-# Only touch the running service once a build has actually succeeded.
+# Only touch the running service once a build has actually succeeded — and not
+# at all during quiet hours, when the agent is meant to be down. The new build
+# is on disk either way and takes effect when the schedule starts it again.
+if /usr/local/bin/uuais-agent-schedule --is-quiet 2>/dev/null; then
+  log "updated to ${after:0:8}; inside quiet hours, so leaving the agent stopped"
+  exit 0
+fi
+
 systemctl restart "$SVC"
 sleep 8
 if ! systemctl is-active --quiet "$SVC"; then

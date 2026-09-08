@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Enforces the agent's quiet hours.
+#
+# Declarative rather than a stop-timer plus a start-timer: this reconciles the
+# service to the state the clock says it should be in, so a reboot, a manual
+# start, or a missed timer inside the window all self-correct at the next run.
+#
+# Reminders are not lost while the agent is down. The sweep selects everything
+# with due_at <= now, so anything that came due overnight is delivered shortly
+# after the agent comes back.
+set -euo pipefail
+
+SVC=uuais-mattermost-agent
+QUIET_START_HOUR=${UUAIS_QUIET_START:-0}   # inclusive
+QUIET_END_HOUR=${UUAIS_QUIET_END:-6}       # exclusive
+
+hour=$(date +%-H)
+
+is_quiet() {
+  if [ "$QUIET_START_HOUR" -lt "$QUIET_END_HOUR" ]; then
+    [ "$hour" -ge "$QUIET_START_HOUR" ] && [ "$hour" -lt "$QUIET_END_HOUR" ]
+  else
+    # Window wraps past midnight (e.g. 22 -> 06).
+    [ "$hour" -ge "$QUIET_START_HOUR" ] || [ "$hour" -lt "$QUIET_END_HOUR" ]
+  fi
+}
+
+# Lets other units ask "are we in quiet hours?" without duplicating the logic.
+if [ "${1:-}" = "--is-quiet" ]; then
+  is_quiet && exit 0 || exit 1
+fi
+
+if is_quiet; then
+  if systemctl is-active --quiet "$SVC"; then
+    echo "[schedule] ${hour}:00 is inside quiet hours (${QUIET_START_HOUR}:00-${QUIET_END_HOUR}:00) - stopping agent"
+    systemctl stop "$SVC"
+  fi
+else
+  if ! systemctl is-active --quiet "$SVC"; then
+    echo "[schedule] ${hour}:00 is outside quiet hours - starting agent"
+    systemctl start "$SVC"
+  fi
+fi

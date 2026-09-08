@@ -1,0 +1,6 @@
+[Unit]
+Description=Enforce UUAIS agent quiet hours
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/uuais-agent-schedule

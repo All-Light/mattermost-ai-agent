@@ -10,6 +10,7 @@ import { reminderTools } from "../tools/reminders";
 import { calendarTools } from "../tools/calendar";
 import { calendarConfigured } from "../google/calendar";
 import { sandboxAvailable, sandboxTools } from "../tools/sandbox";
+import { getModel } from "../settings/store";
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
 
@@ -207,7 +208,9 @@ export const mattermostAgent = new Agent({
       or Uppsala University, defer to official channels and the board
       rather than improvising rules.
   `,
-  model: "openrouter/deepseek/deepseek-v4-flash-0731",
+  // Resolved per request so `./model` in Mattermost takes effect immediately,
+  // without a restart. Falls back to the default when nothing is overridden.
+  model: () => getModel(),
   memory: agentMemory,
   tools: { ...githubTools, ...uuaisTools, ...crmTools, ...reminderTools, ...googleCalendarTools, ...shellTools },
   channels: {
