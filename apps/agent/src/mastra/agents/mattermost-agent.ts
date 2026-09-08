@@ -10,6 +10,9 @@ import { reminderTools } from "../tools/reminders";
 import { calendarTools } from "../tools/calendar";
 import { calendarConfigured } from "../google/calendar";
 import { sandboxAvailable, sandboxTools } from "../tools/sandbox";
+import { buildCustomTools, customToolManagement } from "../tools/custom-tools";
+import { inboxTools } from "../tools/inbox";
+import { inboxConfigured } from "../google/inbox";
 import { getModel } from "../settings/store";
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
@@ -24,9 +27,15 @@ const uuaisTools = uuaisMcp
       })
   : {};
 
+// The bot's own mailbox, read-only over IMAP.
+const mailboxTools = inboxConfigured() ? inboxTools : {};
+if (!inboxConfigured()) {
+  console.warn("[inbox] GOOGLE_BOT_NAME / GOOGLE_BOT_PASSWORD are not set — mailbox tools will be disabled.");
+}
+
 // The isolated shell exists only on hosts that have the wrapper installed
 // (the Pi deployment), not on a laptop checkout.
-const shellTools = sandboxAvailable() ? sandboxTools : {};
+const shellTools = sandboxAvailable() ? { ...sandboxTools, ...customToolManagement } : {};
 
 // Shared Google Calendar: registered only when configured, so the model is not
 // offered tools that can only fail.
@@ -175,6 +184,32 @@ export const mattermostAgent = new Agent({
       person requesting is clearly acting for the team (e.g. a board member
       chasing a deadline), and say who set it in the reminder text.
 
+    Writing your own tools:
+    - When you find yourself doing the same computation more than once, save
+      it: create_custom_tool stores a script under a name and description, and
+      it appears in your tool list as custom_<name> from your next turn. Use
+      list_custom_tools to see what you have, delete_custom_tool to remove one.
+    - Good candidates are deterministic, reusable calculations — splitting a
+      venue cost per head, converting a schedule into an agenda, normalising a
+      pasted list. Bad candidates are one-off sums (just use the shell) and
+      anything needing the network or our systems, which the sandbox cannot
+      reach.
+    - Give each one a description you would understand months later, and name
+      parameters clearly: they arrive in the script as $PARAM_<NAME> and as
+      $PARAMS_JSON.
+    - The script is test-run when you save it. Read that output — if it failed,
+      fix the script rather than leaving a broken tool behind.
+    - Tell the member when you create one, so the team knows what you have
+      taught yourself.
+
+    Your own mailbox (list_inbox, read_email, search_inbox):
+    - You have a read-only view of bot@uuais.com. You cannot send, reply,
+      delete or mark anything as read — say so plainly if asked to send mail,
+      and offer to draft something a member can send instead.
+    - Mail may contain personal data about members or partners. Summarise it
+      for the person who asked; do not paste addresses or full message bodies
+      into a shared channel unless they clearly want that.
+
     Isolated shell (run_sandboxed_shell):
     - Use it to actually compute rather than guess: arithmetic, date maths,
       parsing a pasted CSV or log, checking a regex, reshaping text.
@@ -212,7 +247,18 @@ export const mattermostAgent = new Agent({
   // without a restart. Falls back to the default when nothing is overridden.
   model: () => getModel(),
   memory: agentMemory,
-  tools: { ...githubTools, ...uuaisTools, ...crmTools, ...reminderTools, ...googleCalendarTools, ...shellTools },
+  // Resolved per request, so a tool the agent writes for itself with
+  // create_custom_tool is callable on its very next turn without a restart.
+  tools: async () => ({
+    ...githubTools,
+    ...uuaisTools,
+    ...crmTools,
+    ...reminderTools,
+    ...googleCalendarTools,
+    ...shellTools,
+    ...mailboxTools,
+    ...(await buildCustomTools()),
+  }),
   channels: {
     adapters: {
       mattermost: createMattermostAdapter(),

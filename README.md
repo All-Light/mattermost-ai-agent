@@ -372,6 +372,46 @@ until the morning rather than starting the bot at 03:00.
 Adjust with `UUAIS_QUIET_START` / `UUAIS_QUIET_END` (hours, 24h clock) in the
 schedule unit.
 
+## Tools the agent writes for itself
+
+`create_custom_tool` saves a script under a name and description; it appears in
+the agent's own tool list as `custom_<name>` from the next turn, because the
+agent resolves `tools` per request rather than at construction.
+`list_custom_tools` and `delete_custom_tool` manage them, and they are stored in
+`agent_custom_tools` so they survive restarts.
+
+Parameters reach the script as `$PARAM_<NAME>` (uppercased) and as
+`$PARAMS_JSON`, shell-quoted. Quoting here is about correctness rather than
+safety: the script already runs in the sandbox, which is the actual security
+boundary, so a value that "escaped" into the script would gain nothing it did
+not already have.
+
+Every saved script is smoke-tested in the sandbox before it is stored, and the
+test output is handed back to the agent so a broken tool is caught at the point
+of writing it.
+
+## The bot's mailbox
+
+Read-only access to `bot@uuais.com` over IMAP: `list_inbox`, `read_email`,
+`search_inbox`. Mailboxes are opened read-only, so nothing can be marked, moved
+or deleted — and IMAP cannot send mail at all, so "read but never send" is a
+property of the transport, not a promise in the prompt.
+
+```bash
+GOOGLE_BOT_NAME=bot@uuais.com
+GOOGLE_BOT_PASSWORD=<16-character Google App Password>
+```
+
+**It must be an App Password.** Gmail rejects an account's ordinary sign-in
+password over IMAP with `AUTHENTICATIONFAILED`. Generate one at
+[myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+while signed in as the bot account; 2-Step Verification has to be on for that
+account first.
+
+This was chosen over Gmail API with domain-wide delegation deliberately: an app
+password reaches exactly one mailbox and cannot be pointed at another user,
+whereas delegation is a domain-wide trust that merely happens to be scoped.
+
 ## Rate limiting
 
 A per-user sliding-window limiter guards the bot against abuse (a script or runaway loop burning model credits). Limits are generous enough that a regular member never notices them:

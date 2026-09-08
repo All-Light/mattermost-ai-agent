@@ -26,7 +26,8 @@ export function sandboxAvailable(): boolean {
   }
 }
 
-function runSandbox(script: string): Promise<{ output: string; exitCode: number; timedOut: boolean }> {
+/** Run a script in the sandbox. Shared with the self-authored custom tools. */
+export function runSandboxScript(script: string): Promise<{ output: string; exitCode: number; timedOut: boolean }> {
   return new Promise((resolve, reject) => {
     // No arguments, and an environment built from scratch rather than inherited,
     // so none of the agent's tokens reach the child. PATH is set explicitly: an
@@ -99,7 +100,7 @@ export const runSandboxedShell = createTool({
     if (!script.trim()) throw new Error("Empty script.");
 
     console.log(`[sandbox] running script${purpose ? `: ${purpose}` : ""} (${script.length} bytes)`);
-    const result = await runSandbox(script);
+    const result = await runSandboxScript(script);
 
     return {
       output:

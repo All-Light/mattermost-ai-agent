@@ -10,6 +10,7 @@ import { githubMcp, GITHUB_ORG } from "../mcp/github-mcp";
 import { calendarConfigured } from "../google/calendar";
 import { sandboxAvailable } from "../tools/sandbox";
 import { mattermostConfigured } from "../mattermost/rest";
+import { inboxConfigured, inboxAddress } from "../google/inbox";
 import { getModel } from "../settings/store";
 
 const COMMANDS = ["!help", "/help", ".help", "./help"] as const;
@@ -71,12 +72,24 @@ function sections(): Section[] {
       disabledNote: "needs `GITHUB_TOKEN`",
     },
     {
+      title: "📥 Bot mailbox",
+      enabled: inboxConfigured(),
+      lines: [
+        `"Anything new in ${inboxAddress() ?? "the bot inbox"}?"`,
+        '"Summarise the unread mail."',
+        '"Search my inbox for anything from tldv."',
+        "_(read-only — I can't send or reply)_",
+      ],
+      disabledNote: "needs `GOOGLE_BOT_NAME` and an app password in `GOOGLE_BOT_PASSWORD`",
+    },
+    {
       title: "🧮 Scratch shell",
       enabled: sandboxAvailable(),
       lines: [
         '"Work out the per-head cost if the venue is 4200 kr for 35 people."',
         '"Parse this CSV I\'m pasting and total the third column."',
         "_(isolated: no network, no access to our systems)_",
+        "I can also save a script as a reusable tool — ask me to remember a calculation.",
       ],
       disabledNote: "only available on the Pi deployment",
     },
