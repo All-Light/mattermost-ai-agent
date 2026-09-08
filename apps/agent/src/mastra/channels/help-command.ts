@@ -12,6 +12,7 @@ import { sandboxAvailable } from "../tools/sandbox";
 import { mattermostConfigured } from "../mattermost/rest";
 import { inboxConfigured, inboxAddress } from "../google/inbox";
 import { webSearchConfigured } from "../web/exa";
+import { driveConfigured } from "../google/drive";
 import { getModel } from "../settings/store";
 
 const COMMANDS = ["!help", "/help", ".help", "./help"] as const;
@@ -71,6 +72,16 @@ function sections(): Section[] {
         '"What does the README of the website repo say about deployment?"',
       ],
       disabledNote: "needs `GITHUB_TOKEN`",
+    },
+    {
+      title: "📂 Shared drive",
+      enabled: driveConfigured(),
+      lines: [
+        '"What does the handover doc say about sponsorship pricing?"',
+        '"Find anything in the drive about the spring hackathon."',
+        "_(read-only — I can't edit documents)_",
+      ],
+      disabledNote: "needs the drive shared with the service account",
     },
     {
       title: "🔎 Web search",

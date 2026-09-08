@@ -10,8 +10,7 @@
 //
 // The service account itself holds no IAM roles; its entire reach is whatever
 // the calendar's sharing settings grant it.
-import { JWT } from "google-auth-library";
-import { readFileSync } from "node:fs";
+import { googleCredentials, scopedJwt } from "./auth";
 import { SOCIETY_TIMEZONE } from "../reminders/time";
 
 const SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -20,58 +19,20 @@ const API_BASE = "https://www.googleapis.com/calendar/v3";
 /** Marks events this agent created, so it can refuse to delete human ones. */
 export const AGENT_TAG = "uuais-mattermost-agent";
 
-type Credentials = { clientEmail: string; privateKey: string };
-
-function credentials(): Credentials | null {
-  const inlineEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const inlineKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-  // Inline env vars first: a container has no convenient place for a key file.
-  if (inlineEmail && inlineKey) {
-    // Env vars flatten newlines; PEM parsing needs them back.
-    return { clientEmail: inlineEmail, privateKey: inlineKey.replace(/\\n/g, "\n") };
-  }
-
-  const keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE;
-  if (!keyFile) return null;
-
-  try {
-    const parsed = JSON.parse(readFileSync(keyFile, "utf8"));
-    if (!parsed.client_email || !parsed.private_key) {
-      console.warn(`[calendar] ${keyFile} is missing client_email or private_key.`);
-      return null;
-    }
-    return { clientEmail: parsed.client_email, privateKey: parsed.private_key };
-  } catch (error) {
-    console.warn(
-      `[calendar] Could not read GOOGLE_SERVICE_ACCOUNT_KEY_FILE (${keyFile}):`,
-      error instanceof Error ? error.message : error,
-    );
-    return null;
-  }
-}
-
 export function calendarId(): string | null {
   return process.env.GOOGLE_CALENDAR_ID?.trim() || null;
 }
 
 export function calendarConfigured(): boolean {
-  return credentials() !== null && calendarId() !== null;
+  return googleCredentials() !== null && calendarId() !== null;
 }
 
-let client: JWT | null = null;
-
-function jwt(): JWT {
-  if (client) return client;
-  const creds = credentials();
-  if (!creds) {
-    throw new Error(
-      "Google Calendar is not configured. Set GOOGLE_CALENDAR_ID plus either " +
-        "GOOGLE_SERVICE_ACCOUNT_KEY_FILE or GOOGLE_SERVICE_ACCOUNT_EMAIL/_PRIVATE_KEY.",
-    );
-  }
-  client = new JWT({ email: creds.clientEmail, key: creds.privateKey, scopes: [SCOPE] });
-  return client;
+function jwt() {
+  return scopedJwt(
+    [SCOPE],
+    "Google Calendar is not configured. Set GOOGLE_CALENDAR_ID plus either " +
+      "GOOGLE_SERVICE_ACCOUNT_KEY_FILE or GOOGLE_SERVICE_ACCOUNT_EMAIL/_PRIVATE_KEY.",
+  );
 }
 
 async function calFetch<T>(path: string, init?: RequestInit): Promise<T> {

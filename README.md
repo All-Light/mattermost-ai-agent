@@ -372,6 +372,30 @@ until the morning rather than starting the bot at 03:00.
 Adjust with `UUAIS_QUIET_START` / `UUAIS_QUIET_END` (hours, 24h clock) in the
 schedule unit.
 
+## UUAIS shared drive
+
+Read-only access via `list_drive_files`, `search_drive` (full-text, matches
+document contents), `read_drive_file` and `list_shared_drives`. Google Docs,
+Sheets and Slides are exported as text/CSV; plain-text files are read directly;
+PDFs and images are refused with a link rather than returned as unusable bytes.
+
+The scope is `drive.readonly`, so Google itself refuses any write — the agent
+cannot edit, move or delete a document regardless of what it is asked to do.
+
+**Access is granted to the service account, not to `bot@uuais.com`.** Sharing
+the drive with the bot's mailbox account does nothing for the agent: they are
+different identities. Share it with
+
+```
+uuais-bot@uuais-agent.iam.gserviceaccount.com
+```
+
+as **Viewer** (Shared drive → Manage members). `list_shared_drives` reports what
+the bot can actually see and names this address when the list is empty, so a
+missing share diagnoses itself.
+
+Requires the Drive API enabled on the `uuais-agent` project, which it is.
+
 ## Web search (Exa)
 
 Four tools over [Exa](https://exa.ai): `web_search` (with domain filters and a

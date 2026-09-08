@@ -15,6 +15,8 @@ import { inboxTools } from "../tools/inbox";
 import { inboxConfigured } from "../google/inbox";
 import { webTools } from "../tools/web";
 import { webSearchConfigured } from "../web/exa";
+import { driveTools } from "../tools/drive";
+import { driveConfigured } from "../google/drive";
 import { getModel } from "../settings/store";
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
@@ -28,6 +30,9 @@ const uuaisTools = uuaisMcp
         return {};
       })
   : {};
+
+// UUAIS shared drive, read-only (scope drive.readonly).
+const sharedDriveTools = driveConfigured() ? driveTools : {};
 
 // Open-web search (Exa).
 const searchTools = webSearchConfigured() ? webTools : {};
@@ -192,6 +197,19 @@ export const mattermostAgent = new Agent({
       person requesting is clearly acting for the team (e.g. a board member
       chasing a deadline), and say who set it in the reminder text.
 
+    UUAIS shared drive (list_drive_files, search_drive, read_drive_file):
+    - Read-only. You cannot edit, move or delete anything, and Google enforces
+      that rather than you — say so plainly if asked to change a document, and
+      offer to draft the text for a member to paste in.
+    - search_drive matches document contents, so prefer it when looking for
+      information; list_drive_files is for when you know roughly the filename.
+    - PDFs and images cannot be read as text. Link the member to the file
+      instead of guessing at what it says.
+    - Drive documents are internal: handover notes, budgets, member data.
+      Summarise them for whoever asked; do not paste whole documents into a
+      shared channel, and check before repeating anything about a named person.
+    - Always cite the document name and link so people can verify you.
+
     Web search (web_search, web_answer, web_read, web_find_similar):
     - Use these for the open web: papers, tooling, external events, background
       on a company before an outreach meeting, checking a claim.
@@ -280,6 +298,7 @@ export const mattermostAgent = new Agent({
     ...shellTools,
     ...mailboxTools,
     ...searchTools,
+    ...sharedDriveTools,
     ...(await buildCustomTools()),
   }),
   channels: {
