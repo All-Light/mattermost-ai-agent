@@ -3,8 +3,8 @@ dist/
 .build/
 .mastra/
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 .turbo/
@@ -14,3 +14,12 @@ bun.lockb
 mastra.db
 mastra.db-shm
 mastra.db-wal
+
+# Agent state: the LibSQL database holds conversation memory and the reminder
+# queue. It is per-deployment and must never reach a public repo.
+*.db
+*.db-shm
+*.db-wal
+
+# Machine-local Docker override (declares itself as not-committed)
+docker/docker-compose.override.yml
