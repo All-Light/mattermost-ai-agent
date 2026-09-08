@@ -1,11 +1,12 @@
 import { Mastra } from "@mastra/core";
-import { LibSQLStore } from "@mastra/libsql";
-import { mattermostAgent } from "./agents/mattermost-agent";
+import { mattermostAgent, store } from "./agents/mattermost-agent";
+import { startReminderScheduler } from "./reminders/scheduler";
 
 export const mastra = new Mastra({
   agents: { mattermostAgent },
-  storage: new LibSQLStore({
-    id: "mastra",
-    url: process.env.DATABASE_URL ?? "file:./mastra.db",
-  }),
+  storage: store,
 });
+
+// Scheduled reminders are delivered by a background sweep rather than by the
+// agent loop, so they fire whether or not anyone is talking to the bot.
+startReminderScheduler();

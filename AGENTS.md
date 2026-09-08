@@ -4,9 +4,9 @@ Guidance for AI coding agents working in this repository. Read this before makin
 
 ## What this project is
 
-**KTHAIS Mattermost AI Agent** — a [Mastra](https://mastra.ai) agent that runs as a bot inside KTHAIS's Mattermost workspace. Users @mention the bot or DM it; the agent replies through Mastra's normal pipeline (model → tools → memory).
+**UUAIS Mattermost AI Agent** — a [Mastra](https://mastra.ai) agent that runs as a bot inside UUAIS's Mattermost workspace (`chat.aisociety.se`). Users @mention the bot or DM it; the agent replies through Mastra's normal pipeline (model → tools → memory).
 
-The Mattermost integration uses Mastra's **channels** feature (`@mastra/core@1.22.0`+) combined with the community [`chat-adapter-mattermost`](https://www.npmjs.com/package/chat-adapter-mattermost) package from the [Chat SDK](https://chat-sdk.dev/adapters) ecosystem.
+The Mattermost integration uses Mastra's **channels** feature (`@mastra/core@1.22.0`+) combined with the community [`chat-adapter-mattermost`](https://www.npmjs.com/package/chat-adapter-mattermost) package from the [Chat SDK](https://chat-sdk.dev/adapters) ecosystem. The default model routes through **OpenRouter** (`openrouter/deepseek/deepseek-v4-flash-0731`); change the `model` string in `apps/agent/src/mastra/agents/mattermost-agent.ts` to swap providers.
 
 ## Repo layout
 
@@ -22,7 +22,7 @@ The Mattermost integration uses Mastra's **channels** feature (`@mastra/core@1.2
 - **Language:** TypeScript, ES modules (`"type": "module"`).
 - **Install/run:** `bun install`, `bun run dev`, `bun run build` from repo root. Do **not** introduce `npm`, `pnpm`, or `yarn` lockfiles.
 - **Framework:** Mastra. Use the `mastra` skill at `.claude/skills/mastra/SKILL.md` for current API signatures before writing framework code — the API moves fast and outdated patterns will fail silently.
-- **Model strings:** Use Mastra's string shorthand (`"openai/gpt-5-mini"`, `"openai/gpt-5.4"`, etc.) or AI SDK provider factories. Don't hardcode model versions the team hasn't approved.
+- **Model strings:** Use Mastra's string shorthand (`"openrouter/deepseek/deepseek-v4-flash-0731"`, `"openrouter/openai/gpt-5.4-mini"`, etc.) or AI SDK provider factories. Don't hardcode model versions the team hasn't approved.
 
 ## Adding an agent
 

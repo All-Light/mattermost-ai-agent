@@ -4,7 +4,7 @@ This file is the entry point for Claude Code. All project guidance for AI coding
 
 Quick orientation:
 
-- **Project:** KTHAIS Mattermost AI Agent — a [Mastra](https://mastra.ai) agent that runs as a bot in Mattermost via Mastra's `channels` feature (`@mastra/core@1.22.0`+) and the community [`chat-adapter-mattermost`](https://www.npmjs.com/package/chat-adapter-mattermost) package.
+- **Project:** UUAIS Mattermost AI Agent — a [Mastra](https://mastra.ai) agent that runs as a bot in Mattermost via Mastra's `channels` feature (`@mastra/core@1.22.0`+) and the community [`chat-adapter-mattermost`](https://www.npmjs.com/package/chat-adapter-mattermost) package. Default model routed through OpenRouter (`openrouter/deepseek/deepseek-v4-flash-0731`).
 - **Stack:** Bun workspaces monorepo, TypeScript ESM, Node.js `>=20`, Bun `>=1.2.0`.
 - **Entry point:** `apps/agent/src/mastra/index.ts` registers every `Agent` on the `Mastra` instance.
 - **Run:** `bun install && bun run dev` from the repo root.

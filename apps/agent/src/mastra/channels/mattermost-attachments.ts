@@ -1,11 +1,8 @@
 import type { ChannelHandler } from "@mastra/core/channels";
 import type { Message } from "chat";
+import { checkRateLimit, RATE_LIMIT_LIMITS } from "./rate-limit";
 
-// chat-adapter-mattermost v1.1.2 only sets `url` on attachments, which points at
-// `<baseUrl>/api/v4/files/<fileId>` and requires the bot token in the
-// Authorization header. Mastra's channel processor hands URL-only attachments
-// straight to the model, so the AI SDK tries to download them unauthenticated
-// and fails. Attaching `fetchData` lets Mastra inline the bytes itself.
+// Adapter only sets `url` on attachments (bot-token auth needed); attach fetchData so Mastra inlines the bytes.
 const enrichMattermostAttachments = (message: Message) => {
   const token = process.env.MATTERMOST_BOT_TOKEN;
   const baseUrl = process.env.MATTERMOST_BASE_URL?.replace(/\/$/, "");
@@ -36,5 +33,22 @@ export const withMattermostAttachmentAuth: ChannelHandler = async (
   defaultHandler,
 ) => {
   enrichMattermostAttachments(message);
+
+  // Per-user abuse guard (generous limits; bots/self excluded) so runaway loops can't burn model credits.
+  const userId = message.author?.userId;
+  const isBot = message.author?.isBot === true;
+  if (userId && !isBot) {
+    const reason = checkRateLimit(userId, {
+      perMinute: Number(process.env.RATE_LIMIT_PER_MINUTE ?? RATE_LIMIT_LIMITS.perMinute),
+      perDay: Number(process.env.RATE_LIMIT_PER_DAY ?? RATE_LIMIT_LIMITS.perDay),
+    });
+    if (reason) {
+      await thread.post(
+        `You've hit the bot's ${reason}. Please wait a bit before messaging again — this keeps the bot free for everyone.`,
+      );
+      return;
+    }
+  }
+
   await defaultHandler(thread, message);
 };
