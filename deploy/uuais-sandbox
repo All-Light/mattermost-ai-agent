@@ -15,7 +15,7 @@
 #   - root                   (rootless userns; all capabilities dropped)
 #   - any host path          (no -v mounts at all)
 #   - any environment        (no -e; the agent's tokens are never passed in)
-#   - unbounded resources    (address space, pids and wall-clock all capped)
+#   - unbounded resources    (CPU, address space, pids and wall-clock all capped)
 #
 # Memory is bounded with ulimit rather than a cgroup because Raspberry Pi OS
 # ships `cgroup_disable=memory` on the kernel cmdline; re-enabling the memory
@@ -60,7 +60,8 @@ printf '%s' "$script" | timeout --signal=KILL "$CLIENT_TIMEOUT_SECONDS" \
     --read-only \
     --tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777 \
     --workdir /tmp \
-    --pids-limit 128 \
+    --cpus 1 \
+    --pids-limit 32 \
     --ulimit nofile=256:256 \
     --cap-drop ALL \
     --security-opt no-new-privileges \
