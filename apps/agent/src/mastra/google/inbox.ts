@@ -14,10 +14,14 @@ const HOST = process.env.GOOGLE_IMAP_HOST ?? "imap.gmail.com";
 const PORT = Number(process.env.GOOGLE_IMAP_PORT ?? 993);
 
 function credentials(): { user: string; pass: string } | null {
-  // Values may be quoted in .env; dotenv keeps the quotes when they are mixed
-  // with other characters, so strip them defensively.
+  // Values may arrive quoted depending on how the environment was loaded.
+  // Google displays app passwords as four space-separated groups ("abcd efgh
+  // ijkl mnop"); the spaces are presentational, so strip them rather than
+  // depending on the server tolerating either form.
   const user = process.env.GOOGLE_BOT_NAME?.trim().replace(/^["']|["']$/g, "");
-  const pass = process.env.GOOGLE_BOT_PASSWORD?.trim().replace(/^["']|["']$/g, "");
+  const pass = process.env.GOOGLE_BOT_PASSWORD?.trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, "");
   if (!user || !pass) return null;
   return { user, pass };
 }
