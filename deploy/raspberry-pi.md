@@ -68,6 +68,10 @@ Copy the Google service-account key to a path **outside any home directory**,
 so the systemd sandbox can still see it:
 
 ```bash
+# The directory must be traversable by the service user, not just the file
+# readable: root:root 750 leaves the agent with EACCES even when it owns the
+# key inside, and the calendar tools then disable themselves at startup.
+sudo chown root:uuais-agent /etc/uuais && sudo chmod 750 /etc/uuais
 sudo install -o uuais-agent -g uuais-agent -m 600 \
   ~/uuais-bot-key.json /etc/uuais/uuais-bot-key.json
 ```
