@@ -106,6 +106,13 @@ journalctl -u uuais-mattermost-agent -f
 A healthy start logs `[reminders] scheduler started`, then
 `[chat-sdk:mattermost] Mattermost websocket connected`.
 
+If instead you see `Failed to initialize channels for agent mattermostAgent`
+with `getaddrinfo EAI_AGAIN chat.aisociety.se`, the Pi came up before its
+resolver did. Mastra only tries once, so the process would stay "active" while
+the bot is deaf. The agent retries on its own: every 15 seconds for the first
+4 minutes, then every 10 minutes, logging `[channels] ... retry N failed` until
+`channels initialized on retry N` appears. No restart is needed.
+
 ## Pi-specific things that will bite you
 
 **The clock.** A Pi has no battery-backed RTC, so it boots believing it is
