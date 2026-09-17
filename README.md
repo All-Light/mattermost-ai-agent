@@ -143,9 +143,9 @@ GITHUB_ORG=uuaisociety
 MCP_ADMIN_TOKEN=...
 MCP_URL=https://www.uuais.com/api/mcp
 
-# UUAIS Business Hub / CRM MCP (token must match the Business Hub's MCP_API_TOKEN)
-CRM_MCP_TOKEN=...
-CRM_MCP_URL=https://uuaibiz.vercel.app/api/mcp
+# UUAIS Business Hub / CRM (read-only Supabase Data API; secrets from William)
+CRM_SUPABASE_PUBLISHABLE_KEY=...
+CRM_PASSWORD=...
 
 # Shared Google Calendar (service account; see "Shared Google Calendar" below)
 GOOGLE_CALENDAR_ID=...@group.calendar.google.com
@@ -196,39 +196,62 @@ MCP_URL=https://www.uuais.com/api/mcp   # override for local dev (e.g. http://lo
 
 If the variables are missing, the tools log a warning and are disabled — everything else keeps working.
 
-## UUAIS Business Hub / CRM (MCP endpoint)
+## UUAIS Business Hub / CRM (read-only Data API)
 
-The agent reads — and, when enabled, writes — the society's internal CRM at
+The agent reads the society's internal CRM at
 [uuaibiz.vercel.app](https://uuaibiz.vercel.app) (repo:
-[`Williyami/UUAIbiz`](https://github.com/Williyami/UUAIbiz)) through an MCP
-endpoint the Business Hub exposes at `POST /api/mcp`. Twelve tools:
+[`Williyami/UUAIbiz`](https://github.com/Williyami/UUAIbiz)) directly from its
+Postgres, over the Supabase Data API (PostgREST). The Hub exposes one URL per
+table; filtering, sorting and joins are query parameters.
 
-**Read** — `crm_list_team`, `crm_list_tasks`, `crm_list_events`,
-`crm_list_meetings`, `crm_list_companies`, `crm_list_contacts`,
-`crm_upcoming` (one digest of everything due in the next N days),
-`crm_search` (free text across every module).
+**Access is read-only and enforced by the database.** The API account
+(`api@uuais.com`) holds the `viewer` role, and row-level security refuses any
+insert, update or delete with `403 new row violates row-level security policy`.
+The agent only ever issues `GET`, so a write cannot be attempted by accident —
+changes to the CRM go through William.
 
-**Write** — `crm_create_task`, `crm_update_task`, `crm_create_event`,
-`crm_update_event`.
+Two layers of tools, in `apps/agent/src/mastra/tools/crm.ts`:
 
-Whether the write tools exist at all is decided by the Business Hub, not here:
-with `MCP_ALLOW_WRITES` unset on that side they are neither advertised nor
-callable. The agent's instructions additionally require it to state any write
-back to the requester and get a yes before calling.
+**Shaped** — the common asks, with small schemas: `crm_pipeline` (companies by
+stage, industry, owner or staleness), `crm_contacts`, `crm_meetings`,
+`crm_events` (including the budget lines), `crm_tasks`, `crm_team`,
+`crm_upcoming` (one digest of meetings, events and tasks due in the next N
+days), `crm_search` (free text across six modules at once).
+
+**Generic** — `crm_query` reads any of the 17 tables with PostgREST syntax
+(embeds, arbitrary filters, exact counts) for anything the shaped tools cannot
+express, and `crm_schema` hands over the tables, columns, enums, foreign keys
+and embeds so the model looks names up instead of guessing.
 
 ```bash
-CRM_MCP_TOKEN=...                                   # = the Business Hub's MCP_API_TOKEN
-CRM_MCP_URL=https://uuaibiz.vercel.app/api/mcp      # override for local dev
+CRM_SUPABASE_PUBLISHABLE_KEY=...   # the project's publishable (anon) key
+CRM_PASSWORD=...                   # password for api@uuais.com
+CRM_SUPABASE_ENDPOINT=https://ejefgpuqzxwndtlkgowa.supabase.co   # optional
+CRM_EMAIL=api@uuais.com                                          # optional
 ```
 
-Missing token or unreachable endpoint → the tools log a warning and disable
-themselves; everything else keeps working. Setup on the CRM side is documented
-in that repo's `docs/mcp-api.md`.
+Missing key or password → the tools log a warning and disable themselves;
+everything else keeps working.
 
-Assignees can be passed as a name, an email or an id — the server resolves them
-against the Business Hub's `profiles` table. Email is the join key between the
-two systems: a Business Hub account and a Mattermost account share it, while
-usernames may differ.
+### Four behaviours worth knowing
+
+These come from the Business Hub API handover (schema verified 17 Sep 2026) and
+each one is handled in `apps/agent/src/mastra/crm/client.ts`:
+
+| Behaviour | How the client handles it |
+| --- | --- |
+| A request **without** an `Authorization` header returns `[]` and **HTTP 200**, not 401 — a dropped token is indistinguishable from an empty table | Every request refuses to leave without a bearer token, so "no results" can never be an unnoticed auth failure |
+| Access tokens last ~1 hour | Cached, refreshed a minute early, shared across concurrent calls; a 401 mid-flight signs in again and retries once |
+| Writes return `403` + an RLS message | Surfaced as a plain "read-only, ask William" and never retried |
+| Some rows are invisible: `personal` tasks, and `notifications` / `user_visits` are scoped to the signed-in user | `crm_tasks` and `crm_schema` say so, so a task count is reported as a floor rather than the team's true total |
+
+Transient failures (network, 429, 5xx) retry twice with backoff. Assignee
+`uuid[]` columns have no foreign key behind them, so PostgREST cannot embed the
+names — the client caches `profiles` and resolves the ids itself, and accepts a
+name or email wherever an assignee is asked for.
+
+Email is the join key between the two systems: a Business Hub account and a
+Mattermost account share it, while usernames may differ.
 
 ## Reminders and reaching members
 

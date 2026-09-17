@@ -60,7 +60,7 @@ cd apps/agent && bun run build
 
 ```bash
 cp apps/agent/.env.example apps/agent/.env
-# fill in MATTERMOST_BOT_TOKEN, OPENROUTER_API_KEY, CRM_MCP_TOKEN, GOOGLE_CALENDAR_ID, ...
+# fill in MATTERMOST_BOT_TOKEN, OPENROUTER_API_KEY, CRM_SUPABASE_PUBLISHABLE_KEY, CRM_PASSWORD, GOOGLE_CALENDAR_ID, ...
 chmod 600 apps/agent/.env
 ```
 

@@ -5,7 +5,6 @@ import { createMattermostAdapter } from "chat-adapter-mattermost";
 import { withMattermostAttachmentAuth } from "../channels/mattermost-attachments";
 import { GITHUB_ORG, githubMcp } from "../mcp/github-mcp";
 import { uuaisMcp } from "../mcp/uuais-mcp";
-import { crmMcp } from "../mcp/crm-mcp";
 import { reminderTools } from "../tools/reminders";
 import { calendarTools } from "../tools/calendar";
 import { calendarConfigured } from "../google/calendar";
@@ -17,6 +16,8 @@ import { webTools } from "../tools/web";
 import { webSearchConfigured } from "../web/exa";
 import { driveTools } from "../tools/drive";
 import { driveConfigured } from "../google/drive";
+import { crmTools } from "../tools/crm";
+import { crmConfigured } from "../crm/client";
 import { githubExtraAvailable, githubExtraTools } from "../tools/github-extra";
 import { getModel } from "../settings/store";
 
@@ -63,15 +64,15 @@ if (!calendarConfigured()) {
   );
 }
 
-// Business Hub CRM (tasks, events, meetings, outreach) via its own MCP endpoint.
-const crmTools = crmMcp
-  ? await crmMcp
-      .listTools()
-      .catch((error) => {
-        console.warn("[crm-mcp] Failed to list tools, disabling:", error instanceof Error ? error.message : error);
-        return {};
-      })
-  : {};
+// Business Hub CRM (outreach, tasks, meetings, events), read-only over its
+// Supabase Data API. Nothing here can write: the API account is `viewer` and
+// row-level security refuses writes inside the database.
+const businessHubTools = crmConfigured() ? crmTools : {};
+if (!crmConfigured()) {
+  console.warn(
+    "[crm] CRM_SUPABASE_PUBLISHABLE_KEY / CRM_PASSWORD are not set — Business Hub (CRM) tools will be disabled.",
+  );
+}
 
 // Persistent memory + storage so channel threads and history survive restarts.
 export const store = new LibSQLStore({
@@ -110,7 +111,10 @@ export const mattermostAgent = new Agent({
     to use it — read those rather than guessing. In short:
     - uuais_* — the society website's live data (events, courses, jobs, FAQ,
       team). Authoritative about UUAIS.
-    - crm_* — the Business Hub, our internal CRM (outreach, tasks, meetings).
+    - crm_* — the Business Hub, our internal CRM: the outreach pipeline,
+      contacts, meetings, events and tasks. Read-only — it cannot be changed
+      from here, so route any change request to William. crm_schema plus
+      crm_query reach anything the shaped crm_* tools do not cover.
     - calendar_* and list/create/update/delete_calendar_event — the one shared
       UUAIS calendar.
     - list_drive_files / search_drive / read_drive_file — the shared drive.
@@ -186,7 +190,7 @@ export const mattermostAgent = new Agent({
     ...githubTools,
     ...githubIssueTools,
     ...uuaisTools,
-    ...crmTools,
+    ...businessHubTools,
     ...reminderTools,
     ...googleCalendarTools,
     ...shellTools,

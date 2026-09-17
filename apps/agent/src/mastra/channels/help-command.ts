@@ -4,7 +4,7 @@
 // disabled integration is reported as disabled instead of being advertised and
 // then failing when someone tries it.
 import type { Message, Thread } from "chat";
-import { crmMcp } from "../mcp/crm-mcp";
+import { crmConfigured } from "../crm/client";
 import { uuaisMcp } from "../mcp/uuais-mcp";
 import { githubMcp, GITHUB_ORG } from "../mcp/github-mcp";
 import { calendarConfigured } from "../google/calendar";
@@ -33,15 +33,15 @@ function sections(): Section[] {
       disabledNote: "needs `MCP_ADMIN_TOKEN`",
     },
     {
-      title: "📊 Business Hub (CRM)",
-      enabled: !!crmMcp,
+      title: "📊 Business Hub (CRM) — read-only",
+      enabled: crmConfigured(),
       lines: [
         '"What\'s coming up in the next two weeks?"',
         '"Which outreach deals are stale?"',
         '"Who is assigned to the lunch lecture?"',
-        '"Create a task for William to follow up with the sponsor, due Friday."',
+        '"What did we charge Antler, and what did that event cost us?"',
       ],
-      disabledNote: "needs `CRM_MCP_TOKEN` and the Business Hub MCP endpoint deployed",
+      disabledNote: "needs `CRM_SUPABASE_PUBLISHABLE_KEY` and `CRM_PASSWORD`",
     },
     {
       title: "📅 Shared calendar",
