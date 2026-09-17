@@ -17,7 +17,7 @@ import { webSearchConfigured } from "../web/exa";
 import { driveTools } from "../tools/drive";
 import { driveConfigured } from "../google/drive";
 import { crmTools } from "../tools/crm";
-import { crmConfigured } from "../crm/client";
+import { crmConfigProblem, crmConfigured } from "../crm/client";
 import { githubExtraAvailable, githubExtraTools } from "../tools/github-extra";
 import { getModel } from "../settings/store";
 
@@ -69,9 +69,16 @@ if (!calendarConfigured()) {
 // row-level security refuses writes inside the database.
 const businessHubTools = crmConfigured() ? crmTools : {};
 if (!crmConfigured()) {
-  console.warn(
-    "[crm] CRM_SUPABASE_PUBLISHABLE_KEY / CRM_PASSWORD are not set — Business Hub (CRM) tools will be disabled.",
-  );
+  const problem = crmConfigProblem();
+  // Half-configured is a deployment fault, not a switched-off feature: say so
+  // loudly, because the symptom is otherwise an agent that quietly has no CRM.
+  if (problem) {
+    console.error(`[crm] MISCONFIGURED — Business Hub tools are disabled: ${problem}.`);
+  } else {
+    console.warn(
+      "[crm] CRM_SUPABASE_PUBLISHABLE_KEY / CRM_PASSWORD are not set — Business Hub (CRM) tools will be disabled.",
+    );
+  }
 }
 
 // Persistent memory + storage so channel threads and history survive restarts.

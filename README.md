@@ -224,14 +224,21 @@ express, and `crm_schema` hands over the tables, columns, enums, foreign keys
 and embeds so the model looks names up instead of guessing.
 
 ```bash
-CRM_SUPABASE_PUBLISHABLE_KEY=...   # the project's publishable (anon) key
-CRM_PASSWORD=...                   # password for api@uuais.com
-CRM_SUPABASE_ENDPOINT=https://ejefgpuqzxwndtlkgowa.supabase.co   # optional
-CRM_EMAIL=api@uuais.com                                          # optional
+CRM_SUPABASE_PUBLISHABLE_KEY=...            # the project's publishable (anon) key
+CRM_PASSWORD=...                            # password for api@uuais.com
+CRM_SUPABASE_ENDPOINT=https://<project>.supabase.co   # required, see below
+CRM_EMAIL=api@uuais.com                     # optional, this is the default
 ```
 
-Missing key or password → the tools log a warning and disable themselves;
-everything else keeps working.
+**The endpoint is required, not optional.** The Business Hub's Supabase URL is
+deliberately not committed to this repo, so the code carries no default for it.
+
+With none of these set the tools disable themselves quietly, as every other
+optional integration here does. With *some* of them set the agent treats it as
+a deployment fault instead — it logs `[crm] MISCONFIGURED — … : <what is
+wrong>` at error level and still starts. That distinction exists because the
+failure is otherwise invisible: a half-configured CRM and a switched-off CRM
+both look like an agent that simply has no CRM tools.
 
 ### Four behaviours worth knowing
 

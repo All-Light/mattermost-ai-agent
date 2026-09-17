@@ -19,6 +19,9 @@
 //     attempted by accident.
 import { TABLES, type TableName, columnsOf, isTable } from "./schema";
 
+// Intentionally blank: the Business Hub's Supabase URL is not committed to this
+// public repo, so CRM_SUPABASE_ENDPOINT is required rather than optional. An
+// empty value here is reported as a fault, never as "feature off".
 const DEFAULT_ENDPOINT = "";
 const DEFAULT_EMAIL = "api@uuais.com";
 
@@ -40,33 +43,76 @@ function env(name: string): string | null {
 
 type Config = { endpoint: string; apiKey: string; email: string; password: string };
 
-function readConfig(): Config | null {
+/**
+ * Deliberately off, or set up wrong? Those need different reporting. Treating
+ * them alike is how a deployment ends up quietly missing a whole toolset:
+ * the tools vanish, the log says "not set", and nobody looks again. Anything
+ * half-configured is a fault and says which part is wrong.
+ */
+type ConfigResult =
+  | { ok: true; config: Config }
+  | { ok: false; absent: true }
+  | { ok: false; absent: false; reason: string };
+
+function readConfig(): ConfigResult {
   const apiKey = env("CRM_SUPABASE_PUBLISHABLE_KEY");
   const password = env("CRM_PASSWORD");
-  if (!apiKey || !password) return null;
 
-  const endpoint = (env("CRM_SUPABASE_ENDPOINT") ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
+  // Nothing at all: the CRM is switched off on purpose (a laptop checkout).
+  if (!apiKey && !password) return { ok: false, absent: true };
+
+  const missing = [
+    !apiKey && "CRM_SUPABASE_PUBLISHABLE_KEY",
+    !password && "CRM_PASSWORD",
+  ].filter(Boolean);
+  if (missing.length) {
+    return { ok: false, absent: false, reason: `${missing.join(" and ")} is missing` };
+  }
+
+  const raw = env("CRM_SUPABASE_ENDPOINT") ?? DEFAULT_ENDPOINT;
+  if (!raw) {
+    return {
+      ok: false,
+      absent: false,
+      reason:
+        "CRM_SUPABASE_ENDPOINT is not set and this build carries no default — " +
+        "set it to the Business Hub's Supabase URL",
+    };
+  }
+  const endpoint = raw.replace(/\/+$/, "");
   try {
     new URL(endpoint);
   } catch {
-    return null;
+    return { ok: false, absent: false, reason: `CRM_SUPABASE_ENDPOINT is not a valid URL ("${endpoint}")` };
   }
-  return { endpoint, apiKey, email: env("CRM_EMAIL") ?? DEFAULT_EMAIL, password };
+
+  return {
+    ok: true,
+    config: { endpoint, apiKey: apiKey!, email: env("CRM_EMAIL") ?? DEFAULT_EMAIL, password: password! },
+  };
 }
 
 export function crmConfigured(): boolean {
-  return readConfig() !== null;
+  return readConfig().ok;
+}
+
+/**
+ * null when the CRM is simply switched off; otherwise why it is broken, so a
+ * deployment can shout about a half-configured CRM instead of hiding it.
+ */
+export function crmConfigProblem(): string | null {
+  const result = readConfig();
+  return result.ok || result.absent ? null : result.reason;
 }
 
 function config(): Config {
-  const c = readConfig();
-  if (!c) {
-    throw new Error(
-      "The Business Hub CRM is not configured — set CRM_SUPABASE_PUBLISHABLE_KEY and CRM_PASSWORD " +
-        "(and optionally CRM_SUPABASE_ENDPOINT / CRM_EMAIL) in apps/agent/.env.",
-    );
-  }
-  return c;
+  const result = readConfig();
+  if (result.ok) return result.config;
+  if (!result.absent) throw new Error(`The Business Hub CRM is misconfigured: ${result.reason}.`);
+  throw new Error(
+    "The Business Hub CRM is not configured — set CRM_SUPABASE_PUBLISHABLE_KEY, CRM_PASSWORD " +
+      "and CRM_SUPABASE_ENDPOINT in apps/agent/.env.",
+  );
 }
 
 // --- Authentication -------------------------------------------------------
