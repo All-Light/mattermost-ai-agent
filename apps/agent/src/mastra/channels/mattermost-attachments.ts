@@ -3,6 +3,7 @@ import type { Message } from "chat";
 import { checkRateLimit, RATE_LIMIT_LIMITS } from "./rate-limit";
 import { handleModelCommand } from "./model-command";
 import { handleHelpCommand } from "./help-command";
+import { whileThinking } from "./thinking-reaction";
 
 // Adapter only sets `url` on attachments (bot-token auth needed); attach fetchData so Mastra inlines the bytes.
 const enrichMattermostAttachments = (message: Message) => {
@@ -57,5 +58,8 @@ export const withMattermostAttachmentAuth: ChannelHandler = async (
   if (await handleHelpCommand(thread, message)) return;
   if (await handleModelCommand(thread, message)) return;
 
-  await defaultHandler(thread, message);
+  // Everything above answers instantly; only past this point does the member
+  // wait on the model, so only past this point is a "working on it" marker
+  // worth showing. 
+  await whileThinking(thread, message, () => defaultHandler(thread, message));
 };
