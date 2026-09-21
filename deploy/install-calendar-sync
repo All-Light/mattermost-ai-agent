@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Run as root from a checkout with Bun dependencies installed.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+bundle=$(mktemp /tmp/uuais-calendar-sync.XXXXXX.js)
+trap 'rm -f "$bundle"' EXIT
+/usr/local/bin/bun build --target=bun apps/agent/src/mastra/calendar-sync/run.ts --outfile "$bundle"
+install -d -m 755 /opt/uuais-calendar-sync
+install -m 644 "$bundle" /opt/uuais-calendar-sync/run.js
+install -m 644 deploy/uuais-calendar-sync.service deploy/uuais-calendar-sync.timer /etc/systemd/system/
+systemctl daemon-reload
+# Enable only after a dry-run has been inspected and the links file is installed.

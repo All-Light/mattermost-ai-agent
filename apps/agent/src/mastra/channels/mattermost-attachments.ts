@@ -1,8 +1,10 @@
-import type { ChannelHandler } from "@mastra/core/channels";
-import type { Message } from "chat";
+import type { Agent } from "@mastra/core/agent";
+import type { ChannelHandler, ChannelHandlerContext } from "@mastra/core/channels";
+import type { Message, Thread } from "chat";
 import { checkRateLimit, RATE_LIMIT_LIMITS } from "./rate-limit";
 import { handleModelCommand } from "./model-command";
 import { handleHelpCommand } from "./help-command";
+import { bindNewApprovals, handleApprovalCommand, pendingIds } from "./approval-command";
 import { whileThinking } from "./thinking-reaction";
 
 // Adapter only sets `url` on attachments (bot-token auth needed); attach fetchData so Mastra inlines the bytes.
@@ -30,11 +32,15 @@ const enrichMattermostAttachments = (message: Message) => {
   }
 };
 
-export const withMattermostAttachmentAuth: ChannelHandler = async (
-  thread,
-  message,
-  defaultHandler,
-) => {
+const chains = new Map<string, Promise<void>>();
+
+async function handleMattermostMessage(
+  thread: Thread,
+  message: Message,
+  defaultHandler: (thread: Thread, message: Message) => Promise<void>,
+  ctx: ChannelHandlerContext,
+  agent: Agent,
+) {
   enrichMattermostAttachments(message);
 
   // Per-user abuse guard (generous limits; bots/self excluded) so runaway loops can't burn model credits.
@@ -57,9 +63,27 @@ export const withMattermostAttachmentAuth: ChannelHandler = async (
   // and behave identically whichever model is selected.
   if (await handleHelpCommand(thread, message)) return;
   if (await handleModelCommand(thread, message)) return;
+  if (await handleApprovalCommand(thread, message, ctx, agent)) return;
+
+  const before = await pendingIds(thread, ctx, agent);
 
   // Everything above answers instantly; only past this point does the member
   // wait on the model, so only past this point is a "working on it" marker
   // worth showing. 
   await whileThinking(thread, message, () => defaultHandler(thread, message));
-};
+  await bindNewApprovals(thread, message, ctx, agent, before);
+}
+
+/** Serializes one Mattermost conversation so the requester is bound to newly-created approvals. */
+export function withMattermostAttachmentAuth(agent: Agent): ChannelHandler {
+  return async (thread, message, defaultHandler, ctx) => {
+    const previous = chains.get(thread.id) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(() => handleMattermostMessage(thread, message, defaultHandler, ctx, agent));
+    chains.set(thread.id, current);
+    try {
+      await current;
+    } finally {
+      if (chains.get(thread.id) === current) chains.delete(thread.id);
+    }
+  };
+}

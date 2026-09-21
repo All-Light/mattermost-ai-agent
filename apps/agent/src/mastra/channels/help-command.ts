@@ -140,6 +140,8 @@ export async function buildHelp(): Promise<string> {
   parts.push("");
   parts.push("**Commands**");
   parts.push("- `!help` — this message");
+  parts.push("- `!approvals` — list actions waiting for your approval");
+  parts.push("- `!approve <toolCallId>` / `!deny <toolCallId>` — decide a pending action");
   parts.push("- `!model` — show the model; maintainers can change it (currently `" + (await getModel()) + "`)");
   parts.push("");
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=Synchronize CRM events to UUAIS board calendar
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=uuais-agent
+Group=uuais-agent
+RuntimeDirectory=uuais-calendar-sync
+RuntimeDirectoryMode=0750
+WorkingDirectory=/opt/uuais-calendar-sync
+EnvironmentFile=/opt/mattermost-ai-agent/apps/agent/.env
+Environment=CRM_CALENDAR_LINKS_FILE=/etc/uuais/crm-calendar-links.json
+ExecStart=/usr/bin/flock -n /run/uuais-calendar-sync/lock /usr/local/bin/bun /opt/uuais-calendar-sync/run.js --apply
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

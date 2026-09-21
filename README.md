@@ -269,7 +269,7 @@ allow — these tools use Mattermost's REST API directly
 | Tool | Behaviour |
 | --- | --- |
 | `remind_member` | Schedules a DM for a future time |
-| `message_member` | Sends a DM now — **requires approval**, rendered as an Approve/Deny card |
+| `message_member` | Sends a DM now — **requires approval** using `!approve <id>` or `!deny <id>` |
 | `list_reminders` | Scheduled reminders, soonest first |
 | `cancel_reminder` | Cancels a pending one |
 
@@ -489,15 +489,12 @@ whereas delegation is a domain-wide trust that merely happens to be scoped.
 
 ## Tool output in chat
 
-The channel is configured with `toolDisplay: "hidden"`. Mastra's default,
-`"cards"`, posts each tool's raw result into the conversation — which meant a
-`web_answer` call showed members the JSON envelope instead of an answer. With
-`hidden`, tools run silently and the typing indicator still reports
-`is calling <tool>…`.
-
-Approve/deny prompts are unaffected: Mastra renders those as their own card
-regardless of this setting, so the gates on `message_member` and
-`delete_calendar_event` still work.
+The channel suppresses ordinary tool events and raw results, but posts each
+approval request with its arguments and a command. Use `!approve <toolCallId>`
+or `!deny <toolCallId>` in the same conversation; `!approvals` lists pending
+requests. This works over the Mattermost WebSocket and does not need an
+interactive callback URL. Only the member who requested an action can decide
+it, and the binding survives an agent restart.
 
 The prompt also tells the agent that tool output is raw material rather than a
 reply, since a model can paste JSON on its own without any help from the
@@ -561,7 +558,12 @@ When the bot is mentioned mid-thread it has no prior context by default. Mastra 
 
 ## Tool approval
 
-Tools marked `requireApproval: true` render as Approve/Deny cards in Mattermost. The tool only runs after approval. Set `cards: false` on the adapter to fall back to plain text; Mastra's `autoResumeSuspendedTools` then lets the LLM decide from conversation context.
+Tools marked `requireApproval: true` do not run until the requesting member
+uses `!approve <toolCallId>` in the same conversation. `!deny <toolCallId>`
+cancels it. This explicit command fallback is used because Mattermost
+interactive callbacks require a public callback URL; it never enables
+`autoResumeSuspendedTools`. Requests from before requester tracking was installed
+must be made again; they cannot safely be assigned to a member.
 
 ## Multi-user awareness
 
@@ -586,3 +588,71 @@ The `channels` config supports `inlineMedia` (mime-type patterns) and `inlineLin
 ## License
 
 MIT © UUAIS
+
+## Automatic CRM → board calendar sync
+
+A separate systemd timer (`uuais-calendar-sync.timer`) runs every 30 minutes,
+including while the chat bot is off overnight. It makes **no model calls**.
+The job reads all CRM event statuses and dated meetings. It creates entries from
+today onward, then keeps linked entries synchronized even after their date has
+passed; it does not backfill old, unlinked records.
+
+Calendar titles show `[Planned]`, `[Confirmed]`, `[On hold]`, `[Completed]`, or
+`[Cancelled]`; meetings show `[Meeting]`. Planned/on-hold/cancelled entries are
+transparent (do not reserve availability). Cancellation stays visible instead
+of deleting the entry. Events without a usable time range show `[Time TBD]` as
+all-day, nonblocking placeholders. Meetings with a start time have an explicitly
+estimated 60-minute duration. Explicit time ranges use their given offset, or
+Europe/Stockholm when no offset is provided.
+
+Identity is the source namespace plus permanent record ID, stored in Google's
+private event properties. Renames, status changes, and rescheduling update the
+same calendar entry. Deterministic IDs prevent duplicate inserts after a failed
+run. Repeated unchanged runs make no writes. Each patch uses the event's ETag;
+a concurrent edit makes the patch fail instead of overwriting unseen changes.
+
+The sync owns the linked entry's title, status, date, location, and its marked
+description block; other description text is retained. When an existing entry
+has precise times but CRM only has a date, those calendar times are retained
+(and move with the CRM date). Once CRM supplies an explicit range, that range
+wins. Changes should normally be made in CRM; calendar edits to source-owned
+fields will be reconciled on the next run. Missing source records are reported,
+never treated as permission to delete. Undated/invalid records are reported and
+skipped.
+
+Existing entries can be explicitly linked using `CRM_CALENDAR_LINKS_FILE`, a
+JSON array stored at `/etc/uuais/crm-calendar-links.json` on the Pi:
+
+```json
+[{ "namespace": "crm.events", "id": "CRM-record-UUID", "calendarEventId": "Google-event-ID" }]
+```
+
+Use an empty array for a new calendar. The sync refuses obvious unlinked
+same-title/date duplicates and never automatically adopts human entries. Check
+links carefully, because they authorize the job to manage those calendar entries.
+
+Install from the checkout on the Pi with `sudo bash deploy/install-calendar-sync`.
+This builds a separate, self-contained Bun artifact at
+`/opt/uuais-calendar-sync/run.js`; rebuilding the chat agent does not replace it.
+The service reads the existing agent environment file for CRM and Google
+credentials. Run a dry-run before enabling the timer:
+
+```bash
+sudo systemd-run --wait --pipe --collect --uid=uuais-agent \
+  --property=EnvironmentFile=/opt/mattermost-ai-agent/apps/agent/.env \
+  --setenv=CRM_CALENDAR_LINKS_FILE=/etc/uuais/crm-calendar-links.json \
+  /usr/local/bin/bun /opt/uuais-calendar-sync/run.js --dry-run
+sudo systemctl enable --now uuais-calendar-sync.timer
+sudo systemctl start uuais-calendar-sync.service
+journalctl -u uuais-calendar-sync.service
+```
+
+Run tests with `bun test apps/agent/src/mastra/calendar-sync/sync.test.ts`.
+For another source, implement `CalendarSource` in `calendar-sync/source.ts` and
+register it alongside `crmSource` in `run.ts`. The adapter supplies normalized
+records; the planner and calendar writer are source-independent. A website
+adapter can use its own namespace for independent events. If both sources
+represent the same real event, resolve them to one canonical source identity
+before planning; cross-source reconciliation is not implemented yet. A future
+website publishing destination can consume the normalized source records
+without depending on the Google Calendar writer.

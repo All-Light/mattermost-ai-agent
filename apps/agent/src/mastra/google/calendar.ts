@@ -42,6 +42,7 @@ async function calFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { token } = await jwt().getAccessToken();
   const response = await fetch(`${API_BASE}/calendars/${encodeURIComponent(id)}${path}`, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(30_000),
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -86,6 +87,9 @@ export type CalendarEvent = {
   start?: { dateTime?: string; date?: string; timeZone?: string };
   end?: { dateTime?: string; date?: string; timeZone?: string };
   extendedProperties?: { private?: Record<string, string> };
+  recurrence?: string[];
+  etag?: string;
+  transparency?: "opaque" | "transparent";
 };
 
 /** True when this agent created the event, per its own tag. */
@@ -110,6 +114,24 @@ export async function listEvents(opts: {
 
   const data = await calFetch<{ items?: CalendarEvent[] }>(`/events?${params}`);
   return data.items ?? [];
+}
+
+/** Lists every event. Used by deterministic synchronizers, never by chat tools. */
+export async function listAllEvents(): Promise<CalendarEvent[]> {
+  const items: CalendarEvent[] = [];
+  let token: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const params = new URLSearchParams({ singleEvents: "false", showDeleted: "false", maxResults: "2500" });
+    if (token) params.set("pageToken", token);
+    const page = await calFetch<{ items?: CalendarEvent[]; nextPageToken?: string }>(`/events?${params}`);
+    if (page.items && !Array.isArray(page.items)) throw new Error("Invalid Calendar events page");
+    items.push(...(page.items ?? []));
+    token = page.nextPageToken;
+    if (token && seen.has(token)) throw new Error("Calendar pagination repeated a token");
+    if (token) seen.add(token);
+  } while (token);
+  return items;
 }
 
 export async function getEvent(eventId: string): Promise<CalendarEvent> {
@@ -176,4 +198,34 @@ export async function patchEvent(
 
 export async function deleteEvent(eventId: string): Promise<void> {
   await calFetch<void>(`/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+}
+
+export type SyncEventInput = {
+  id: string; summary: string; description: string; location?: string;
+  start: TimeInput; end: TimeInput; transparency?: "opaque" | "transparent";
+  private: Record<string, string>;
+};
+
+// Clear the other representation when changing between all-day and timed events.
+function syncTime(time: TimeInput) {
+  return { date: time.date ?? null, dateTime: time.dateTime ?? null,
+    timeZone: time.date ? null : SOCIETY_TIMEZONE };
+}
+
+/** Creates a deterministic, synchronizer-owned event. Google returns 409 when its id already exists. */
+export async function createSyncEvent(input: SyncEventInput): Promise<CalendarEvent> {
+  return calFetch<CalendarEvent>("/events", { method: "POST", body: JSON.stringify({
+    id: input.id, summary: input.summary, description: input.description, location: input.location,
+    start: syncTime(input.start), end: syncTime(input.end), transparency: input.transparency,
+    extendedProperties: { private: input.private },
+  }) });
+}
+
+/** Patches only sync-owned fields. `If-Match` protects human edits between read and write. */
+export async function patchSyncEvent(eventId: string, input: SyncEventInput, etag: string): Promise<CalendarEvent> {
+  return calFetch<CalendarEvent>(`/events/${encodeURIComponent(eventId)}`, { method: "PATCH", headers: etag ? { "If-Match": etag } : undefined, body: JSON.stringify({
+    summary: input.summary, description: input.description, location: input.location,
+    start: syncTime(input.start), end: syncTime(input.end), transparency: input.transparency,
+    extendedProperties: { private: input.private },
+  }) });
 }

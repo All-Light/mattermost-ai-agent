@@ -3,6 +3,7 @@ import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
 import { createMattermostAdapter } from "chat-adapter-mattermost";
 import { withMattermostAttachmentAuth } from "../channels/mattermost-attachments";
+import { renderApprovalCommand } from "../channels/approval-command";
 import { GITHUB_ORG, githubMcp } from "../mcp/github-mcp";
 import { uuaisMcp } from "../mcp/uuais-mcp";
 import { reminderTools } from "../tools/reminders";
@@ -20,6 +21,9 @@ import { crmTools } from "../tools/crm";
 import { crmConfigProblem, crmConfigured } from "../crm/client";
 import { githubExtraAvailable, githubExtraTools } from "../tools/github-extra";
 import { getModel } from "../settings/store";
+import type { ChannelHandler } from "@mastra/core/channels";
+
+let mattermostChannelHandler: ChannelHandler;
 
 const githubTools = githubMcp ? await githubMcp.listTools() : {};
 
@@ -210,18 +214,15 @@ export const mattermostAgent = new Agent({
     adapters: {
       mattermost: {
         adapter: createMattermostAdapter(),
-        // Default is "cards", which posts each tool's raw result into the
-        // channel — members saw the JSON envelope from web_answer rather than
-        // an answer. Run tools silently instead; the typing indicator still
-        // shows "is calling <tool>…", and approve/deny prompts still render as
-        // their own card regardless of this setting.
-        toolDisplay: "hidden",
+        toolDisplay: renderApprovalCommand,
       },
     },
     handlers: {
-      onDirectMessage: withMattermostAttachmentAuth,
-      onMention: withMattermostAttachmentAuth,
-      onSubscribedMessage: withMattermostAttachmentAuth,
+      onDirectMessage: (...args) => mattermostChannelHandler(...args),
+      onMention: (...args) => mattermostChannelHandler(...args),
+      onSubscribedMessage: (...args) => mattermostChannelHandler(...args),
     },
   },
 });
+
+mattermostChannelHandler = withMattermostAttachmentAuth(mattermostAgent);
