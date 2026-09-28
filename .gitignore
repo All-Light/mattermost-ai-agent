@@ -10,6 +10,7 @@ dist/
 .turbo/
 bun.lockb
 .cache/
+local-deployment.md
 
 mastra.db
 mastra.db-shm
@@ -23,3 +24,7 @@ mastra.db-wal
 
 # Machine-local Docker override (declares itself as not-committed)
 docker/docker-compose.override.yml
+
+# Python admin utility caches
+__pycache__/
+*.pyc

@@ -6,6 +6,8 @@ import { handleModelCommand } from "./model-command";
 import { handleHelpCommand } from "./help-command";
 import { bindNewApprovals, handleApprovalCommand, pendingIds } from "./approval-command";
 import { whileThinking } from "./thinking-reaction";
+import { handleCrmReminderCommand } from "../crm-reminders/commands";
+import { crmReminderStore } from "../crm-reminders/service";
 
 // Adapter only sets `url` on attachments (bot-token auth needed); attach fetchData so Mastra inlines the bytes.
 const enrichMattermostAttachments = (message: Message) => {
@@ -43,6 +45,9 @@ async function handleMattermostMessage(
 ) {
   enrichMattermostAttachments(message);
 
+  // Preference commands must always work, including when the sender exhausted the model rate limit.
+  if (await handleCrmReminderCommand(thread, message, crmReminderStore)) return;
+
   // Per-user abuse guard (generous limits; bots/self excluded) so runaway loops can't burn model credits.
   const userId = message.author?.userId;
   const isBot = message.author?.isBot === true;
@@ -57,6 +62,18 @@ async function handleMattermostMessage(
       );
       return;
     }
+  }
+
+  // A reminder reply inherits only this sender's reminder, and only in their DM.
+  if (userId && !isBot && thread.isDM) {
+    const raw = message.raw as { root_id?: string; parent_id?: string; post?: { root_id?: string; parent_id?: string } } | undefined;
+    const rootPostId = raw?.post?.root_id || raw?.root_id || raw?.post?.parent_id || raw?.parent_id;
+    try {
+      const reminder = rootPostId
+        ? await crmReminderStore.context(thread.channelId, rootPostId, userId)
+        : await crmReminderStore.latestContext(thread.channelId, userId);
+      if (reminder) ctx.requestContext.set("crmTaskReminderContext", reminder);
+    } catch (error) { console.warn("[crm-reminders] Could not load reply context:", error instanceof Error ? error.message : error); }
   }
 
   // Commands are answered here and never reach the model, so they cost nothing

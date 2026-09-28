@@ -1,0 +1,19 @@
+[Unit]
+Description=Private UUAIS agent conversation overview
+After=network.target
+
+[Service]
+Type=simple
+User=uuais-agent
+Group=uuais-agent
+ExecStart=/usr/bin/python3 /opt/mattermost-ai-agent/apps/agent/scripts/usage_overview.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/uuais-agent
+
+[Install]
+WantedBy=multi-user.target

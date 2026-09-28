@@ -4,6 +4,7 @@
 // reaching out to someone unprompted (reminders, nudges).
 
 const CACHE_TTL_MS = 5 * 60_000;
+import { sendMattermostDm } from "./adapter";
 
 type MattermostUser = {
   id: string;
@@ -25,6 +26,7 @@ export function mattermostConfigured(): boolean {
   return config() !== null;
 }
 
+export class MattermostRequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 async function mmFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const cfg = config();
   if (!cfg) throw new Error("MATTERMOST_BASE_URL / MATTERMOST_BOT_TOKEN are not set");
@@ -48,7 +50,7 @@ async function mmFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* keep the truncated body */
     }
-    throw new Error(`Mattermost ${init?.method ?? "GET"} ${path} failed (${response.status}): ${detail}`);
+    throw new MattermostRequestError(`Mattermost ${init?.method ?? "GET"} ${path} failed (${response.status}): ${detail}`, response.status);
   }
 
   return (await response.json()) as T;
@@ -85,6 +87,7 @@ export async function resolveUser(ref: string): Promise<MattermostUser> {
   try {
     user = await mmFetch<MattermostUser>(path);
   } catch (error) {
+    if (error instanceof MattermostRequestError) throw error;
     throw new Error(
       `No Mattermost account for "${ref}". ` +
         (needle.includes("@")
@@ -147,5 +150,21 @@ export async function directMessage(
   const postId = await postMessage(channelId, message);
   return { username: user.username, userId: user.id, channelId, postId };
 }
+
+/** CRM email is authoritative; only a definite user-lookup 404 permits fallback. */
+export async function resolveCrmUser(profile: { email: string; name: string }): Promise<MattermostUser> {
+  try {
+    if (profile.email.trim()) return await resolveUser(profile.email.trim().toLowerCase());
+  }
+  catch (error) {
+    if (!(error instanceof MattermostRequestError) || error.status !== 404) throw error;
+  }
+  const parts = profile.name.trim().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/\s+/);
+  if (parts.length < 2 || !/^[a-z][a-z-]*$/.test(parts[0]!) || !/^[a-z][a-z-]*$/.test(parts.at(-1)!)) throw new Error(`Cannot derive a Mattermost username for CRM profile ${profile.name}.`);
+  const username = `${parts[0]}.${parts.at(-1)}`;
+  return resolveUser(`${username}@uuais.com`);
+}
+
+export async function crmDirectMessage(userId: string, text: string) { return sendMattermostDm(userId, text); }
 
 export type { MattermostUser };

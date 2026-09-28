@@ -288,6 +288,23 @@ Times without a timezone are read as **Europe/Stockholm** wall-clock time —
 "tomorrow at 09:00" means 09:00 in Uppsala, in both summer and winter
 (`apps/agent/src/mastra/reminders/time.ts`).
 
+CRM assignment reminders poll the Business Hub every 30 minutes and send one
+DM per Mattermost member containing all newly assigned tasks found in that poll.
+The Supabase query selects only open tasks with assignees, then reads only the
+referenced profiles (`id`, `name`, `email`). It does not scan unrelated CRM tables.
+For example, three tasks assigned to one member before the next poll produce
+one DM. Summaries show up to 15 tasks plus an overflow count and the CRM link.
+The first complete successful poll seeds a baseline and sends no messages, avoiding a rollout burst. Only the documented
+`To do` and `In progress` tasks are active; `Done` tasks are ignored. State,
+preferences, weekly deduplication and sent-message context share `DATABASE_URL`.
+Members can use `!reminders off`, `!reminders on`, or `!reminders status`;
+`!reminders weekly on|off` controls an optional Sunday 18:00
+Europe/Stockholm summary (off by default). Replies in a DM thread get the exact
+sent reminder in that run's private instructions. The adapter does not support
+the callback lifecycle needed for reliable buttons, so these short commands
+are the opt-out path. CRM email is matched first; only a definitive Mattermost
+404 permits a normalized `firstname.lastname@uuais.com` fallback.
+
 ## Shared Google Calendar
 
 The bot manages one shared UUAIS calendar: `list_calendar_events`,

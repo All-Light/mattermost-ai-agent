@@ -34,13 +34,11 @@ if ! as_agent git merge-base --is-ancestor "$before" "$after"; then
   exit 1
 fi
 
-# A deploy checkout should carry no local edits, but a build or a stray write can
-# dirty a tracked file and then every merge fails with "local changes would be
-# overwritten". Discard those rather than wedging the pipeline; untracked files
-# (bun/npm caches under HOME) are left alone.
-if ! as_agent git diff --quiet; then
-  log "discarding local modifications to tracked files"
-  as_agent git checkout -- .
+# Preserve local deployments. Never discard tracked changes merely to make
+# an unattended update succeed; publish/reconcile them before resuming updates.
+if ! as_agent git diff --quiet || ! as_agent git diff --cached --quiet; then
+  log "local source changes present; leaving deployment untouched until reconciled"
+  exit 0
 fi
 
 # Keep the currently-working build so a failure is recoverable.

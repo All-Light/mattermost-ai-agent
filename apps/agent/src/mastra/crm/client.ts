@@ -245,8 +245,12 @@ async function get(path: string, params: URLSearchParams, options: GetOptions = 
 
     if (response.ok || response.status === 206) {
       const total = options.count ? parseTotal(response.headers.get("content-range")) : null;
-      const body = (await response.json().catch(() => [])) as unknown;
-      const all = Array.isArray(body) ? (body as Record<string, unknown>[]) : [body as Record<string, unknown>];
+      let body: unknown;
+      try { body = await response.json(); } catch { throw new Error(`Business Hub returned invalid JSON for ${path}.`); }
+      if (!Array.isArray(body) || body.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+        throw new Error(`Business Hub returned an invalid row set for ${path}.`);
+      }
+      const all = body as Record<string, unknown>[];
       const cap = Math.min(options.limit ?? MAX_ROWS, MAX_ROWS);
       return { rows: all.slice(0, cap), total, truncated: all.length > cap };
     }

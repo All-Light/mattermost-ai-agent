@@ -143,17 +143,13 @@ export async function buildHelp(): Promise<string> {
   parts.push("- `!approvals` — list actions waiting for your approval");
   parts.push("- `!approve <toolCallId>` / `!deny <toolCallId>` — decide a pending action");
   parts.push("- `!model` — show the model; maintainers can change it (currently `" + (await getModel()) + "`)");
+  parts.push("- `!reminders off|on|status` — manage CRM task DMs; `!reminders weekly on|off` opts into Sunday summaries");
   parts.push("");
 
   if (off.length) {
     parts.push("**Not switched on yet:** " + off.map((s) => `${s.title.replace(/^\S+\s/, "")} (${s.disabledNote})`).join(", ") + ".");
     parts.push("");
   }
-
-  parts.push(
-    "_Not yet possible: recurring background jobs, e.g. sweeping the website for " +
-      "new applications and messaging you when one arrives. Reminders are one-off._",
-  );
 
   return parts.join("\n");
 }
